@@ -71,6 +71,20 @@ int uart0_putc2(char ch, FILE *stream) {
     return 0;
 }
 
+
+// int
+// uart_putchar(char c)
+// {
+//     
+// //     if (c == '\n')
+// //         uart_putchar('\r');
+// //     loop_until_bit_is_set(UCSRA, UDRE);
+// //     UDR = c;
+//     return 0;
+// }
+
+
+
 #define CHANGE  1
 #define FALLING 2
 #define RISING  3
@@ -115,6 +129,45 @@ static uint8_t  twi_addr = 0;
 static uint8_t *twi_data = 0;
 static uint8_t  twi_len = 0;
 
+
+void i2c_master_init() {
+    PORTC |= (1 << PC4) | (1 << PC5); // Enable internal pull-ups. Need 4.7k-10k external resistors.
+    TWSR = 0x00;
+    TWBR = (F_CPU / I2C_MASTER_FREQ - 16) / 2;
+}
+
+
+uint8_t i2c_master_io(const uint8_t addr, uint8_t *data, const uint8_t len) {
+    twi_addr = addr;
+    twi_data = data;
+    twi_len = len;
+    uint32_t startMs = millis2();
+    TWCR = I2C_START;
+    while (TWCR & (1 << TWIE)) {
+        if ((millis2() - startMs) > I2C_MASTER_TOT_MS) {
+            return 1;
+        }
+    };
+    return 0;
+}
+
+
+
+int8_t i2c_write(const uint8_t *buf, uint8_t num_bytes, uint8_t addr)
+{
+    printf_P(PSTR("\ni2c_write(buf=%s, uint32_t num_bytes=%u, uint16_t addr=%u)\n"), buf, num_bytes, addr);
+    if (i2c_master_io(TW_WRITE | (addr << 1), (uint8_t *)buf, num_bytes) != 0) return -EIO;
+    return 0; // 0 - successful, or -EIO General - input / output error.
+}
+
+int8_t i2c_read(uint8_t *buf, uint8_t num_bytes, uint8_t addr)
+{
+    printf_P(PSTR("\ni2c_read(buf=%s, uint32_t num_bytes=%u, uint16_t addr=%u)\n"), buf, num_bytes, addr);
+    if (i2c_master_io(TW_READ | (addr << 1), buf, num_bytes) != 0) return -EIO;
+    return 0;
+}
+
+
 ISR(TWI_vect) {
     switch (TWSR & TW_STATUS_MASK) {
         case TW_START:
@@ -122,8 +175,8 @@ ISR(TWI_vect) {
             TWDR = twi_addr;
             TWCR = I2C_SEND;
             break;
-
-        // MASTER READ
+            
+            // MASTER READ
         case TW_MR_DATA_ACK:
             *twi_data++ = TWDR;
             --twi_len;
@@ -140,7 +193,7 @@ ISR(TWI_vect) {
             TWCR = I2C_STOP;
             break;
             
-        // MASTER WRITE
+            // MASTER WRITE
         case TW_MT_SLA_ACK:
         case TW_MT_DATA_ACK:
             if (twi_len) {
@@ -164,49 +217,27 @@ ISR(TWI_vect) {
         case TW_MT_ARB_LOST:  // Same as TW_MR_ARB_LOST
             TWCR = I2C_START;
             break;
-
+            
         default:
             TWCR = I2C_RESET;
             break;
     }
 }
 
-void twi_master_init() {
-    PORTC |= (1 << PC4) | (1 << PC5); // Enable internal pull-ups. Need 4.7k-10k external resistors.
-    TWSR = 0x00;
-    TWBR = (F_CPU / I2C_MASTER_FREQ - 16) / 2;
+
+void leds_init() {
+    DRIVER(PIN_LED_CHG, OUT);
+    DRIVER(PIN_LED_DIS, OUT);
+    OFF(PIN_LED_CHG);
+    OFF(PIN_LED_DIS);
 }
 
-
-uint8_t twi_master_io(const uint8_t addr, uint8_t *data, const uint8_t len) {
-    twi_addr = addr;
-    twi_data = data;
-    twi_len = len;
-    uint32_t startMs = millis2();
-    TWCR = I2C_START;
-    while (TWCR & (1 << TWIE)) {
-        if ((millis2() - startMs) > I2C_MASTER_TOT_MS) {
-            return 1;
-        }
-    };
-    return 0;
+void leds_chg_set(bool on) {
+    if (on) { ON(PIN_LED_CHG); } else {OFF(PIN_LED_CHG);  }
 }
 
-
-
-int8_t i2c_write(const uint8_t *buf, uint8_t num_bytes, uint8_t addr)
-{
-    printf_P(PSTR("\ni2c_write(buf=%s, uint32_t num_bytes=%u, uint16_t addr=%u)\n"), buf, num_bytes, addr);
-    if (twi_master_io(TW_WRITE | (addr << 1), (uint8_t *)buf, num_bytes) != 0) return -EIO;
-    return 0; // 0 - successful, or -EIO General - input / output error.
+void leds_dis_set(bool on) {
+    if (on) { ON(PIN_LED_DIS); } else {OFF(PIN_LED_DIS);  }
 }
-
-int8_t i2c_read(uint8_t *buf, uint8_t num_bytes, uint8_t addr)
-{
-    printf_P(PSTR("\ni2c_read(buf=%s, uint32_t num_bytes=%u, uint16_t addr=%u)\n"), buf, num_bytes, addr);
-    if (twi_master_io(TW_READ | (addr << 1), buf, num_bytes) != 0) return -EIO;
-    return 0;
-}
-
 
 #endif

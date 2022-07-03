@@ -4,8 +4,6 @@
 #include <stdio.h>
 #include <time.h>
 
-#include "pin_macros.h"
-
 #if defined (__AVR__) || defined (__AVR_ARCH__)
 
 #include <avr/io.h>
@@ -15,6 +13,7 @@
 #include <avr/wdt.h>
 #include <util/atomic.h>
 #include <util/delay.h>
+#include "pin_macros.h"
 
 #define I2C_MASTER_FREQ 100000UL
 #define I2C_MASTER_TOT_MS 4
@@ -67,6 +66,8 @@ uint32_t pgm_read_dword(const uint32_t *_address_short);
 
 #endif
 
+void i2c_master_init(void);
+
 /**
  * @brief Write a set amount of data to an I2C device.
  *
@@ -99,12 +100,24 @@ int8_t i2c_write(const uint8_t *buf, uint8_t num_bytes, uint8_t addr);
  */
 int8_t i2c_read(uint8_t *buf, uint8_t num_bytes, uint8_t addr);
 
-uint32_t millis2(); // timer ms counter
-
-uint32_t uptime2(); // uptime sec counter
 
 void mcu_init();
+uint32_t millis2(); // timer ms counter
+uint32_t uptime2(); // uptime sec counter
 
+/**
+ * Init port
+ */
+void leds_init();
 
-void twi_master_init();
+/**
+ * Set green charging LED on or off
+ */
+void leds_chg_set(bool on);
+
+/**
+ * Set red discharging LED on or off
+ */
+void leds_dis_set(bool on);
+
 

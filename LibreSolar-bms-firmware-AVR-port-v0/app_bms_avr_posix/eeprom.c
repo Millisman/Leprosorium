@@ -57,7 +57,7 @@ void eeprom_restore_data() {
         }
     }
     else {
-        printf_P(PSTR("EEPROM: Empty or data layout version changed\n"), NULL);
+        printf_P(PSTR("EEPROM: Empty or data layout version changed\n"));
     }
 }
 

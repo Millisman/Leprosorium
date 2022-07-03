@@ -27,19 +27,6 @@
  */
 void leds_update();
 
-/**
- * Init port
- */
-void leds_init();
 
-/**
- * Set green charging LED on or off
- */
-void leds_chg_set(bool on);
-
-/**
- * Set red discharging LED on or off
- */
-void leds_dis_set(bool on);
 
 #endif // LEDS_H_

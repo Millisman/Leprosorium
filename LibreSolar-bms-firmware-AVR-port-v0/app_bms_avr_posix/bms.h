@@ -32,14 +32,14 @@ enum BmsState
 /**
  * Battery cell types
  */
-enum CellType
+typedef enum
 {
     CELL_TYPE_CUSTOM = 0, ///< Custom settings
     CELL_TYPE_LFP,        ///< LiFePO4 Li-ion cells (3.3 V nominal)
     CELL_TYPE_NMC,        ///< NMC/Graphite Li-ion cells (3.7 V nominal)
     CELL_TYPE_NMC_HV,     ///< NMC/Graphite High Voltage Li-ion cells (3.7 V nominal, 4.35 V max)
     CELL_TYPE_LTO         ///< NMC/Titanate (2.4 V nominal)
-};
+} CellType;
 
 /**
  * BMS configuration values, stored in RAM. The configuration is not automatically applied after
@@ -175,7 +175,7 @@ void bms_init_status(Bms *bms);
  * @param type One of enum CellType (defined as int so that it can be set via Kconfig).
  * @param nominal_capacity Nominal capacity of the battery pack.
  */
-void bms_init_config(Bms *bms, int type, float nominal_capacity);
+void bms_init_config(Bms *bms, CellType type, float nominal_capacity);
 
 /**
  * Initialization of BMS incl. setup of communication. This function does not yet set any config.

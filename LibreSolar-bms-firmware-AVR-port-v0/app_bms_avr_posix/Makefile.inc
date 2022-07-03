@@ -1,10 +1,10 @@
 PORT 		= -P /dev/ttyUSB0
 UPLOAD_PROTOCOL = arduino
 # UPLOAD_PROTOCOL = usbtiny
-BUILD_MCU 	= atmega644p
+BUILD_MCU 	= atmega328p
 BUILD_VARIANT 	= standard
 UPLOAD_SPEED 	= 115200
-BUILD_F_CPU 	= 20000000L
+BUILD_F_CPU 	= 12000000L
 
 
 ###############################################################################

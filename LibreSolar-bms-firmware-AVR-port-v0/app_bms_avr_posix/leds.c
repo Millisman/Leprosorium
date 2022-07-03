@@ -11,44 +11,6 @@
 
 extern Bms bms;
 
-#ifndef UNIT_TEST
-
-
-void leds_chg_set(bool on)
-{
-#if defined (__AVR__) || defined (__AVR_ARCH__)
-    if (on) { ON(PIN_LED_CHG); } else {OFF(PIN_LED_CHG);  }
-#endif
-#if defined (__linux) || defined (__linux__) || defined (__gnu_linux__) \
-|| defined (__unix) || defined (__unix__) \
-|| defined (__x86_64) || defined (__x86_64__)
-    printf("leds_chg_set=%u", on);
-#endif
-}
-
-void leds_dis_set(bool on)
-{
-#if defined (__AVR__) || defined (__AVR_ARCH__)
-    if (on) { ON(PIN_LED_DIS); } else {OFF(PIN_LED_DIS);  }
-#endif
-
-#if defined (__linux) || defined (__linux__) || defined (__gnu_linux__) \
-|| defined (__unix) || defined (__unix__) \
-|| defined (__x86_64) || defined (__x86_64__)
-    printf("leds_dis_set=%u", on);
-#endif
-}
-
-void leds_init()
-{
-#if defined (__AVR__) || defined (__AVR_ARCH__)
-    DRIVER(PIN_LED_CHG, OUT);
-    DRIVER(PIN_LED_DIS, OUT);
-    OFF(PIN_LED_CHG);
-    OFF(PIN_LED_DIS);
-#endif 
-}
-
 void leds_update()
 {
     static uint32_t count = 0;
@@ -105,17 +67,3 @@ void leds_update()
 
     count++;
 }
-
-#else
-
-void leds_chg_set(bool on)
-{
-    ;
-}
-
-void leds_dis_set(bool on)
-{
-    ;
-}
-
-#endif // UNIT_TEST

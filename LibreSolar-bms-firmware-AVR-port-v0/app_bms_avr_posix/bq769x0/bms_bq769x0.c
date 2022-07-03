@@ -11,52 +11,16 @@
 #include "interface.h"
 #include "registers.h"
 
-#include <math.h> // log for thermistor calculation
+#include <math.h>   // log for thermistor calculation
 #include <stdlib.h> // for abs() function
 #include <string.h>
 #include <time.h>
-
-// from util.h
-
-#if defined(__cplusplus)
 
 /* The built-in function used below for type checking in C is not
  * supported by GNU C++.
  */
 #define ARRAY_SIZE(array) (sizeof(array) / sizeof((array)[0]))
 
-#else /* __cplusplus */
-
-/**
- * @brief Zero if @p array has an array type, a compile error otherwise
- *
- * This macro is available only from C, not C++.
- */
-#define IS_ARRAY(array) \
-ZERO_OR_COMPILE_ERROR( \
-!__builtin_types_compatible_p(__typeof__(array), \
-__typeof__(&(array)[0])))
-
-/**
- * @brief Number of elements in the given @p array
- *
- * In C++, due to language limitations, this will accept as @p array
- * any type that implements <tt>operator[]</tt>. The results may not be
- * particularly meaningful in this case.
- *
- * In C, passing a pointer as @p array causes a compile error.
- */
-#define ARRAY_SIZE(array) \
-((size_t) (IS_ARRAY(array) + (sizeof(array) / sizeof((array)[0]))))
-
-#endif /* __cplusplus */
-
-
-
-
-
-
-LOG_MODULE_REGISTER(bq769x0, CONFIG_LOG_DEFAULT_LEVEL)
 
 extern int adc_gain;   // factory-calibrated, read out from chip (uV/LSB)
 extern int adc_offset; // factory-calibrated, read out from chip (mV)
@@ -66,22 +30,10 @@ extern int adc_offset; // factory-calibrated, read out from chip (mV)
  *
  * This function is necessary as bq769x0 doesn't support temperature protection
  */
-void bms_check_cell_temp(Bms *bms);
 
 int bms_init_hardware(Bms *)
 {
     return bq769x0_init();
-}
-
-void bms_update(Bms *bms)
-{
-    bms_read_voltages(bms);
-    bms_read_current(bms);
-    bms_soc_update(bms);
-    bms_read_temperatures(bms);
-    bms_check_cell_temp(bms); // bq769x0 doesn't support temperature settings
-    bms_update_error_flags(bms);
-    bms_apply_balancing(bms);
 }
 
 void bms_set_error_flag(Bms *bms, uint32_t flag, bool value)
@@ -94,42 +46,52 @@ void bms_set_error_flag(Bms *bms, uint32_t flag, bool value)
         else {
             bms->status.error_flags &= ~(1UL << flag);
         }
-
-        LOG_DBG("Error flag %u changed to: %d", flag, value);
+        printf_P(PSTR("Error flag %u changed to: %d\n"), flag, value);
     }
 }
 
 void bms_check_cell_temp(Bms *bms)
 {
     float hyst;
-
+    
     hyst = (bms->status.error_flags & (1UL << BMS_ERR_CHG_OVERTEMP)) ? bms->conf.t_limit_hyst : 0;
     bool chg_overtemp = bms->status.bat_temp_max > bms->conf.chg_ot_limit - hyst;
-
+    
     hyst = (bms->status.error_flags & (1UL << BMS_ERR_CHG_UNDERTEMP)) ? bms->conf.t_limit_hyst : 0;
     bool chg_undertemp = bms->status.bat_temp_min < bms->conf.chg_ut_limit + hyst;
-
+    
     hyst = (bms->status.error_flags & (1UL << BMS_ERR_DIS_OVERTEMP)) ? bms->conf.t_limit_hyst : 0;
     bool dis_overtemp = bms->status.bat_temp_max > bms->conf.dis_ot_limit - hyst;
-
+    
     hyst = (bms->status.error_flags & (1UL << BMS_ERR_DIS_OVERTEMP)) ? bms->conf.t_limit_hyst : 0;
     bool dis_undertemp = bms->status.bat_temp_min < bms->conf.dis_ut_limit + hyst;
-
+    
     if (chg_overtemp != (bool)(bms->status.error_flags & (1UL << BMS_ERR_CHG_OVERTEMP))) {
         bms_set_error_flag(bms, BMS_ERR_CHG_OVERTEMP, chg_overtemp);
     }
-
+    
     if (chg_undertemp != (bool)(bms->status.error_flags & (1UL << BMS_ERR_CHG_UNDERTEMP))) {
         bms_set_error_flag(bms, BMS_ERR_CHG_UNDERTEMP, chg_undertemp);
     }
-
+    
     if (dis_overtemp != (bool)(bms->status.error_flags & (1UL << BMS_ERR_DIS_OVERTEMP))) {
         bms_set_error_flag(bms, BMS_ERR_DIS_OVERTEMP, dis_overtemp);
     }
-
+    
     if (dis_undertemp != (bool)(bms->status.error_flags & (1UL << BMS_ERR_DIS_UNDERTEMP))) {
         bms_set_error_flag(bms, BMS_ERR_DIS_UNDERTEMP, dis_undertemp);
     }
+}
+
+void bms_update(Bms *bms)
+{
+    bms_read_voltages(bms);
+    bms_read_current(bms);
+    bms_soc_update(bms);
+    bms_read_temperatures(bms);
+    bms_check_cell_temp(bms); // bq769x0 doesn't support temperature settings
+    bms_update_error_flags(bms);
+    bms_apply_balancing(bms);
 }
 
 bool bms_startup_inhibit()
@@ -226,9 +188,8 @@ void bms_apply_balancing(Bms *bms)
                     balancing_flags = balancing_flags_target;
                 }
             }
-
-            LOG_DBG("Setting CELLBAL%d register to: %s", section + 1, byte2bitstr(balancing_flags));
-
+            printf_P(PSTR("Setting CELLBAL%d register to: %s\n"), section + 1, byte2bitstr(balancing_flags));
+            
             bms->status.balancing_status |= balancing_flags << section * 5;
 
             // set balancing register for this section
@@ -239,7 +200,9 @@ void bms_apply_balancing(Bms *bms)
     else if (bms->status.balancing_status > 0) {
         // clear all CELLBAL registers
         for (int section = 0; section < num_sections; section++) {
-            LOG_DBG("Clearing Register CELLBAL%d\n", section + 1);
+            
+            printf_P(PSTR("Clearing Register CELLBAL%d\n"), section + 1);
+            
             bq769x0_write_byte(BQ769X0_CELLBAL1 + section, 0x0);
         }
 
@@ -377,6 +340,7 @@ int bms_apply_cell_ovp(Bms *bms)
 
 int bms_apply_temp_limits(Bms *bms)
 {
+    (void)bms;
     // bq769x0 don't support temperature limits --> has to be solved in software
 
     return 0;
@@ -591,7 +555,7 @@ void bms_handle_errors(Bms *bms)
             if (sys_stat.flags.DEVICE_XREADY) {
                 // datasheet recommendation: try to clear after waiting a few seconds
                 if (sec_since_error % 3 == 0) {
-                    LOG_DBG("Attempting to clear XR error");
+                    LOG_INF("Attempting to clear XR error\n");
                     bq769x0_write_byte(BQ769X0_SYS_STAT, BQ769X0_SYS_STAT_DEVICE_XREADY);
                     bms_chg_switch(bms, true);
                     bms_dis_switch(bms, true);
@@ -599,7 +563,7 @@ void bms_handle_errors(Bms *bms)
             }
             if (sys_stat.flags.OVRD_ALERT) {
                 if (sec_since_error % 10 == 0) {
-                    LOG_DBG("Attempting to clear Alert error");
+                    LOG_INF("Attempting to clear Alert error\n");
                     bq769x0_write_byte(BQ769X0_SYS_STAT, BQ769X0_SYS_STAT_OVRD_ALERT);
                     bms_chg_switch(bms, true);
                     bms_dis_switch(bms, true);
@@ -608,7 +572,7 @@ void bms_handle_errors(Bms *bms)
             if (sys_stat.flags.UV) {
                 bms_read_voltages(bms);
                 if (bms->status.cell_voltage_min > bms->conf.cell_uv_reset) {
-                    LOG_DBG("Attempting to clear UV error");
+                    LOG_INF("Attempting to clear UV error\n");
                     bq769x0_write_byte(BQ769X0_SYS_STAT, BQ769X0_SYS_STAT_UV);
                     bms_dis_switch(bms, true);
                 }
@@ -616,21 +580,21 @@ void bms_handle_errors(Bms *bms)
             if (sys_stat.flags.OV) {
                 bms_read_voltages(bms);
                 if (bms->status.cell_voltage_max < bms->conf.cell_ov_reset) {
-                    LOG_DBG("Attempting to clear OV error");
+                    LOG_INF("Attempting to clear OV error\n");
                     bq769x0_write_byte(BQ769X0_SYS_STAT, BQ769X0_SYS_STAT_OV);
                     bms_chg_switch(bms, true);
                 }
             }
             if (sys_stat.flags.SCD) {
                 if (sec_since_error % 60 == 0) {
-                    LOG_DBG("Attempting to clear SCD error");
+                    LOG_INF("Attempting to clear SCD error\n");
                     bq769x0_write_byte(BQ769X0_SYS_STAT, BQ769X0_SYS_STAT_SCD);
                     bms_dis_switch(bms, true);
                 }
             }
             if (sys_stat.flags.OCD) {
                 if (sec_since_error % 60 == 0) {
-                    LOG_DBG("Attempting to clear OCD error");
+                    LOG_INF("Attempting to clear OCD error\n");
                     bq769x0_write_byte(BQ769X0_SYS_STAT, BQ769X0_SYS_STAT_OCD);
                     bms_dis_switch(bms, true);
                 }

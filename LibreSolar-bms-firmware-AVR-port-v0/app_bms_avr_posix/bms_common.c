@@ -18,8 +18,8 @@ void bms_init_status(Bms *bms)
     bms->status.dis_enable = true;
 }
 
-void bms_init_config(Bms *bms, int type, float nominal_capacity)
-{
+void bms_init_config(Bms* bms, CellType type, float nominal_capacity) {
+
     bms->conf.auto_balancing_enabled = true;
     bms->conf.bal_idle_delay = 1800;         // default: 30 minutes
     bms->conf.bal_idle_current = 0.1F;       // A
@@ -122,12 +122,12 @@ __attribute__ ((weak)) void bms_state_machine(Bms *bms)
             if (bms_dis_allowed(bms)) {
                 bms_dis_switch(bms, true);
                 bms->status.state = BMS_STATE_DIS;
-                printf("Going to state DIS\n");
+                printf_P(PSTR("Going to state DIS\n"));
             }
             else if (bms_chg_allowed(bms)) {
                 bms_chg_switch(bms, true);
                 bms->status.state = BMS_STATE_CHG;
-                printf("Going to state CHG\n");
+                printf_P(PSTR("Going to state CHG\n"));
             }
             break;
         case BMS_STATE_CHG:
@@ -135,12 +135,12 @@ __attribute__ ((weak)) void bms_state_machine(Bms *bms)
                 bms_chg_switch(bms, false);
                 bms_dis_switch(bms, false); // if on because of ideal diode control
                 bms->status.state = BMS_STATE_OFF;
-                printf("Going back to state OFF\n");
+                printf_P(PSTR("Going back to state OFF\n"));
             }
             else if (bms_dis_allowed(bms)) {
                 bms_dis_switch(bms, true);
                 bms->status.state = BMS_STATE_NORMAL;
-                printf("Going to state NORMAL\n");
+                printf_P(PSTR("Going to state NORMAL\n"));
             }
             else {
                 // ideal diode control for discharge MOSFET (with hysteresis)
@@ -157,12 +157,12 @@ __attribute__ ((weak)) void bms_state_machine(Bms *bms)
                 bms_dis_switch(bms, false);
                 bms_chg_switch(bms, false); // if on because of ideal diode control
                 bms->status.state = BMS_STATE_OFF;
-                printf("Going back to state OFF\n");
+                printf_P(PSTR("Going back to state OFF\n"));
             }
             else if (bms_chg_allowed(bms)) {
                 bms_chg_switch(bms, true);
                 bms->status.state = BMS_STATE_NORMAL;
-                printf("Going to state NORMAL\n");
+                printf_P(PSTR("Going to state NORMAL\n"));
             }
             else {
                 // ideal diode control for charge MOSFET (with hysteresis)
@@ -178,12 +178,12 @@ __attribute__ ((weak)) void bms_state_machine(Bms *bms)
             if (!bms_dis_allowed(bms)) {
                 bms_dis_switch(bms, false);
                 bms->status.state = BMS_STATE_CHG;
-                printf("Going back to state CHG\n");
+                printf_P(PSTR("Going back to state CHG\n"));
             }
             else if (!bms_chg_allowed(bms)) {
                 bms_chg_switch(bms, false);
                 bms->status.state = BMS_STATE_DIS;
-                printf("Going back to state DIS\n");
+                printf_P(PSTR("Going back to state DIS\n"));
             }
             break;
     }

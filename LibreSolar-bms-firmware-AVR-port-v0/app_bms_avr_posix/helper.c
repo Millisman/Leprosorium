@@ -5,19 +5,7 @@
  */
 
 #include "helper.h"
-
-// #include <time.h>
-
 #include "mcu.h"
-
-// // // // uint32_t uptime()
-// // // // {
-// // // // #ifndef UNIT_TEST
-// // // //     return millis2() / 1000; // Get system uptime. This routine returns the elapsed time since the system booted, in milliseconds.
-// // // // #else
-// // // //     return time(NULL);
-// // // // #endif
-// // // // }
 
 float interpolate(const float a[], const float b[], size_t size, float value_a)
 {
@@ -62,14 +50,6 @@ const char *byte2bitstr(uint8_t b)
 }
 
 
-// int64_t k_uptime_get() {
-//     return 0;
-// }
-
-// void k_sleep(uint32_t s) {
-//     
-// }
-
 const static uint8_t crc8_ccitt_small_table[16] = {
     0x00, 0x07, 0x0e, 0x09, 0x1c, 0x1b, 0x12, 0x15,
     0x38, 0x3f, 0x36, 0x31, 0x24, 0x23, 0x2a, 0x2d
@@ -88,18 +68,6 @@ uint8_t crc8_ccitt(uint8_t val, const void *buf, size_t cnt)
     return val;
 }
 
-// uint8_t _crc8_ccitt_update (uint8_t inCrc, uint8_t inData) {
-//     uint8_t data = inCrc ^ inData;
-//     for (uint8_t i = 0; i < 8; i++) {
-//         if ((data & 0x80) != 0) {
-//             data <<= 1;
-//             data ^= 0x07;
-//         } else {
-//             data <<= 1;
-//         }
-//     }
-//     return data;
-// }
 
 /*
 uint8_t _crc8_ccitt_update (uint8_t inCrc, uint8_t inData) {
