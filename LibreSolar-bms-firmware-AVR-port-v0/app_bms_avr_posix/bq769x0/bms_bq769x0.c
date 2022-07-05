@@ -447,7 +447,7 @@ void bms_read_current(Bms *bms)
 
 void bms_read_voltages(Bms *bms)
 {
-    int adc_raw = 0;
+    uint32_t adc_raw = 0;
     int conn_cells = 0;
     float sum_voltages = 0;
     float v_max = 0, v_min = 10;

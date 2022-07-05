@@ -14,6 +14,8 @@
 #include <math.h>
 
 Bms bms;
+volatile int adc_gain;   // factory-calibrated, read out from chip (uV/LSB)
+volatile int adc_offset; // factory-calibrated, read out from chip (mV)
 
 volatile bool       alert_interrupt_flag;
 volatile time_t     alert_interrupt_timestamp;
@@ -30,118 +32,112 @@ typedef enum {
     Jump_Bootloader,
 } app_init_level;
 
-
 app_init_level main_init;
 
-float fx(float f) { return isnan(f) ? 0 : f; }
 
-void printFloat(const char *label, double number, uint8_t digits) {
+// BatNom Ah=100.00
+// PcbDisSC A=200.00
+// PcbDisSC_us=200
+// BatDisLim A=100.00
+// BatDisLimDelay ms=320
+// BatChgLim A=100.00
+// BatChgLimDelay_ms=320
+// DisUpLim degC=45.00
+// DisLowLim degC=-20.00
+// ChgUpLim degC=45.00
+// ChgLowLim degC=0.00
+// TempLimHyst degC=5.00
+// CellUpLim V=4246.00
+// CellUpLimResetV=4.05
+// CellUpLimDelay_ms=8
+// CellLowLim V=3000.00
+// CellLowLimReset V=3.50
+// CellLowLimDelay_ms=16
+// AutoBalEn=1
+// BalCellDiff V=0.01
+// BalCellLowLim V=3.80
+// BalIdleDelay_s=1800
+// BalIdleTh A=0.10
+// ChgEn 1
+// DisEn 1
+// Bat V=47.43
+// Bat A=1.55
+// Bat degC=31.2
+// IC degC=0.0
+// SOC pct=44.28
+// ErrorFlags=0
+// BmsState=3
+// ConnectedCells=13
+// Cell 1=3.645 Cell 2=3.653 Cell 3=3.653 Cell 4=3.649 Cell 5=3.650 Cell 6=3.646 Cell 7=3.649 Cell 8=3.646
+// Cell 9=0.044 Cell 10=3.646 Cell 11=3.648 Cell 12=3.649 Cell 13=3.650 Cell 14=0.046 Cell 15=3.645
+// CellAvg V=3.648
+// CellMin V=3.645
+// CellMax V=3.653
+// BalancingStatus=0
+void pppf() {
     
-    printf("%s=", label);
+    printf_P(PSTR("\n\nBatNom Ah=%.2f\n"), bms.conf.nominal_capacity_Ah);
     
-    if (isnan(number)) { printf_P(PSTR("nan")); return; }
-    if (isinf(number)) { printf_P(PSTR("inf")); return; }
-    if (number > 4294967040.0) { printf_P(PSTR("ovf")); return; } // constant determined empirically
-    if (number <-4294967040.0) { printf_P(PSTR("ovf")); return; } // constant determined empirically
-    
-    // Handle negative numbers
-    if (number < 0.0) { number = -number; }
-    
-    // Round correctly so that print(1.999, 2) prints as "2.00"
-    double rounding = 0.5;
-    for (uint8_t i=0; i<digits; ++i) {
-        rounding /= 10.0;
-    }
-    
-    number += rounding;
-    
-    // Extract the integer part of the number and print it
-    unsigned long int_part = (unsigned long)number;
-    double remainder = number - (double)int_part;
-    printf("%lu", int_part);
-//     n += print(int_part);
-    
-    // Print the decimal point, but only if there are digits beyond
-    if (digits > 0) { printf("."); }
-    
-    // Extract digits from the remainder one at a time
-    while (digits-- > 0) {
-        remainder *= 10.0;
-        unsigned int toPrint = (unsigned int)(remainder);
-        printf("%u", toPrint);
-        remainder -= toPrint; 
-    }
-    
-    printf("\n");
-}
-
-
-
-// %6lf
-void ppp() {
-    printFloat("\n\nBatNom Ah", bms.conf.nominal_capacity_Ah, 1);
-    
-    // current limits
-
-    printFloat("PcbDisSC A", bms.conf.dis_sc_limit, 1);
+    printf_P(PSTR("PcbDisSC A=%.2f\n"), bms.conf.dis_sc_limit);
     printf_P(PSTR("PcbDisSC_us=%u\n"), bms.conf.dis_sc_delay_us);
-    printFloat("BatDisLim A", bms.conf.dis_oc_limit, 1);
+    printf_P(PSTR("BatDisLim A=%.2f\n"), bms.conf.dis_oc_limit);
     printf_P(PSTR("BatDisLimDelay ms=%u\n"), bms.conf.dis_oc_delay_ms);
-    printFloat("BatChgLim A", bms.conf.chg_oc_limit, 1);
+    printf_P(PSTR("BatChgLim A=%.2f\n"), bms.conf.chg_oc_limit);
     printf_P(PSTR("BatChgLimDelay_ms=%u\n"), bms.conf.chg_oc_delay_ms);
-
-// temperature limits
-printFloat("DisUpLim degC", bms.conf.dis_ot_limit, 1);
-printFloat("DisLowLim degC", bms.conf.dis_ut_limit, 1);
-printFloat("ChgUpLim degC", bms.conf.chg_ot_limit, 1);
-printFloat("ChgLowLim degC", bms.conf.chg_ut_limit, 1);
-printFloat("TempLimHyst degC", bms.conf.t_limit_hyst, 1);
-
-// voltage limits
-printFloat("CellUpLim V", bms.conf.cell_ov_limit, 3);
-printFloat("CellUpLimResetV", bms.conf.cell_ov_reset, 3);
-printf_P(PSTR("CellUpLimDelay_ms=%u\n"), bms.conf.cell_ov_delay_ms);
-printFloat("CellLowLim V", bms.conf.cell_uv_limit, 3);
-printFloat("CellLowLimReset V", bms.conf.cell_uv_reset, 3);
-printf_P(PSTR("CellLowLimDelay_ms=%u\n"), bms.conf.cell_uv_delay_ms);
-
-// balancing
-printf_P(PSTR("AutoBalEn=%u\n"), bms.conf.auto_balancing_enabled);
-printFloat("BalCellDiff V", bms.conf.bal_cell_voltage_diff, 4);
-printFloat("BalCellLowLim V", bms.conf.bal_cell_voltage_min, 4);
-printf_P(PSTR("BalIdleDelay_s=%u\n"), bms.conf.bal_idle_delay);
-printFloat("BalIdleTh A", bms.conf.bal_idle_current, 4);
-
-// INPUT DATA /////////////////////////////////////////////////////////////
-printf_P(PSTR("ChgEn %u\n"), bms.status.chg_enable);
-printf_P(PSTR("DisEn %u\n"), bms.status.dis_enable);
-// OUTPUT DATA ////////////////////////////////////////////////////////////
-
-//TS_GROUP(ID_MEAS, "Meas", TS_NO_CALLBACK, ID_ROOT),
-printFloat("Bat V", bms.status.pack_voltage, 4);
-printFloat("Bat A", bms.status.pack_current, 4);
-printFloat("Bat degC", bms.status.bat_temp_avg, 4);
-printFloat("IC degC", bms.status.ic_temp, 4);
+    
+    // temperature limits
+    printf_P(PSTR("DisUpLim degC=%.2f\n"), bms.conf.dis_ot_limit);
+    printf_P(PSTR("DisLowLim degC=%.2f\n"), bms.conf.dis_ut_limit);
+    printf_P(PSTR("ChgUpLim degC=%.2f\n"), bms.conf.chg_ot_limit);
+    printf_P(PSTR("ChgLowLim degC=%.2f\n"), bms.conf.chg_ut_limit);
+    printf_P(PSTR("TempLimHyst degC=%.2f\n"), bms.conf.t_limit_hyst);
+    
+    // voltage limits
+    printf_P(PSTR("CellUpLim V=%.2f\n"), bms.conf.cell_ov_limit);
+    printf_P(PSTR("CellUpLimResetV=%.2f\n"), bms.conf.cell_ov_reset);
+    printf_P(PSTR("CellUpLimDelay_ms=%u\n"), bms.conf.cell_ov_delay_ms);
+    printf_P(PSTR("CellLowLim V=%.2f\n"), bms.conf.cell_uv_limit);
+    printf_P(PSTR("CellLowLimReset V=%.2f\n"), bms.conf.cell_uv_reset);
+    printf_P(PSTR("CellLowLimDelay_ms=%u\n"), bms.conf.cell_uv_delay_ms);
+    
+    // balancing
+    printf_P(PSTR("AutoBalEn=%u\n"), bms.conf.auto_balancing_enabled);
+    printf_P(PSTR("BalCellDiff V=%.2f\n"), bms.conf.bal_cell_voltage_diff);
+    printf_P(PSTR("BalCellLowLim V=%.2f\n"), bms.conf.bal_cell_voltage_min);
+    printf_P(PSTR("BalIdleDelay_s=%u\n"), bms.conf.bal_idle_delay);
+    printf_P(PSTR("BalIdleTh A=%.2f\n"), bms.conf.bal_idle_current);
+    
+    // INPUT DATA /////////////////////////////////////////////////////////////
+    printf_P(PSTR("ChgEn %u\n"), bms.status.chg_enable);
+    printf_P(PSTR("DisEn %u\n"), bms.status.dis_enable);
+    // OUTPUT DATA ////////////////////////////////////////////////////////////
+    
+    //TS_GROUP(ID_MEAS, "Meas", TS_NO_CALLBACK, ID_ROOT),
+    printf_P(PSTR("Bat V=%.2f\n"), bms.status.pack_voltage);
+    printf_P(PSTR("Bat A=%.2f\n"), bms.status.pack_current);
+    printf_P(PSTR("Bat degC=%.1f\n"), bms.status.bat_temp_avg);
+    printf_P(PSTR("IC degC=%.1f\n"), bms.status.ic_temp);
 #ifdef CONFIG_ISL94202   // currently only implemented in ISL94202-based boards (using TS2)
 printf_P(PSTR("MOSFET_degC="), &bms.status.mosfet_temp, 4);
 #endif
-printFloat("SOC pct", bms.status.soc, 2);
-printf_P(PSTR("ErrorFlags=%u\n"), bms.status.error_flags);
-printf_P(PSTR("BmsState=%u\n"), bms.status.state);
-
-// printf_P(PSTR("Cells_V="));
-for (uint8_t x = 0; x < BOARD_NUM_CELLS_MAX; ++x) {
-    printf_P(PSTR(" Cell %u="), x+1);
+    printf_P(PSTR("SOC pct=%.2f\n"), bms.status.soc);
+    printf_P(PSTR("ErrorFlags=%u\n"), bms.status.error_flags);
+    printf_P(PSTR("BmsState=%u\n"), bms.status.state);
     
-    printFloat("", bms.status.cell_voltages[x], 3);
-}
-
-
-// printf_P(PSTR("rCells_V"), &cell_voltages_arr);
-printFloat("CellAvg V", bms.status.cell_voltage_avg, 4);
-printFloat("CellMin V", bms.status.cell_voltage_min, 4);
-printFloat("CellMax V", bms.status.cell_voltage_max, 4);
-printf_P(PSTR("BalancingStatus=%u\n"), bms.status.balancing_status);
+    printf_P(PSTR("ConnectedCells=%u\n"), bms.status.connected_cells);
+    
+    for (uint8_t x = 0; x < BOARD_NUM_CELLS_MAX; ++x) {
+        printf_P(PSTR(" Cell %u=%.3f"), x+1, bms.status.cell_voltages[x]);
+        
+//         printFloat("=%.2f\n", bms.status.cell_voltages[x], 3);
+    }
+    
+    
+    // printf_P(PSTR("rCells_V"), &cell_voltages_arr);
+    printf_P(PSTR("\nCellAvg V=%.3f\n"), bms.status.cell_voltage_avg);
+    printf_P(PSTR("CellMin V=%.3f\n"), bms.status.cell_voltage_min);
+    printf_P(PSTR("CellMax V=%.3f\n"), bms.status.cell_voltage_max);
+    printf_P(PSTR("BalancingStatus=%u\n"), bms.status.balancing_status);
 }
 
 
@@ -180,7 +176,15 @@ int main(void) {
                         printf_P(PSTR("BMS hardware initialization failed\n"));
                     } else {
                         main_init = Apply_BMS;
+                        
+//                         Bms bms;
+//                         volatile int adc_gain;   // factory-calibrated, read out from chip (uV/LSB)
+//                         volatile int adc_offset; // factory-calibrated, read out from chip (mV)
+                        
+                        printf_P(PSTR("adc_gain=%d uV/LSB, adc_offset=%d mV\n"), adc_gain, adc_offset);
+                        
                         printf_P(PSTR("BMS hardware init OK\n"));
+                        
                     }
                     break;
                     
@@ -219,7 +223,7 @@ int main(void) {
             exec_1s = time_now;
             if (main_init == Update_BMS) {
                 //bms_print_registers();
-                ppp();
+                pppf();
             }
         }
         

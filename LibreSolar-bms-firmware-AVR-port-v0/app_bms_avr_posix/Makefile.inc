@@ -32,7 +32,7 @@ PRJCXXFLAGS = -Os -g -mmcu=$(BUILD_MCU) -DF_CPU=$(BUILD_F_CPU) \
 	-fno-exceptions -std=c++14 \
 	-W -Wall -pedantic
 
-LDFLAGS := $(LDFLAGS) -Wl,--gc-sections -Wl,--relax
+LDFLAGS := $(LDFLAGS) -Wl,-u,vfprintf -lprintf_flt -lm -Wl,--gc-sections -Wl,--relax
 
 FORMAT = ihex
 

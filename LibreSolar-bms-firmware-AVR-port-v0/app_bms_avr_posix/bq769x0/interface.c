@@ -14,8 +14,8 @@
 #include "../errno-base.h"
 #include "../helper.h"
 
-int adc_gain;   // factory-calibrated, read out from chip (uV/LSB)
-int adc_offset; // factory-calibrated, read out from chip (mV)
+extern int adc_gain;   // factory-calibrated, read out from chip (uV/LSB)
+extern int adc_offset; // factory-calibrated, read out from chip (mV)
 
 // indicates if a new current reading or an error is available from BMS IC
 extern bool alert_interrupt_flag;
@@ -64,7 +64,7 @@ uint8_t bq769x0_read_byte(uint8_t reg_addr)
     }
 }
 
-int32_t bq769x0_read_word(uint8_t reg_addr)
+uint32_t bq769x0_read_word(uint8_t reg_addr)
 {
     uint8_t buf[5];
 

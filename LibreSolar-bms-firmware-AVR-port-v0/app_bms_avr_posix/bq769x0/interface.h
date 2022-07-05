@@ -37,7 +37,7 @@ uint8_t bq769x0_read_byte(uint8_t reg_addr);
  *
  * @returns the (unsigned) word or -1 in case of CRC error
  */
-int32_t bq769x0_read_word(uint8_t reg_addr);
+uint32_t bq769x0_read_word(uint8_t reg_addr);
 
 /**
  * \returns status of the alert pin
