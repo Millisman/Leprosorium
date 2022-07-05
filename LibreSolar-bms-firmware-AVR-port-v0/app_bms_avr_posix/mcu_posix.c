@@ -4,7 +4,7 @@
 
 #if defined (__AVR__) || defined (__AVR_ARCH__)
 
-#pragma message "mcu_posix.c - skipped in __AVR_ARCH__"
+// #pragma message "mcu_posix.c - skipped in __AVR_ARCH__"
 
 #else
 

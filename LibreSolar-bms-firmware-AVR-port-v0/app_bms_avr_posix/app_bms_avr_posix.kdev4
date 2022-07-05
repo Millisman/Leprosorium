@@ -1,0 +1,4 @@
+[Project]
+CreatedFrom=Makefile
+Manager=KDevCustomMakeManager
+Name=app_bms_avr_posix

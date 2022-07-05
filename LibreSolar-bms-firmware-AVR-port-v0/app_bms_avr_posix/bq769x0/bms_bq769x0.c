@@ -418,7 +418,7 @@ void bms_read_current(Bms *bms)
     if (sys_stat.flags.CC_READY == 1) {
         int adc_raw = bq769x0_read_word(BQ769X0_CC_HI_BYTE);
         if (adc_raw < 0) {
-            LOG_ERR("Error reading current measurement");
+            LOG_ERR("Error reading current measurement\n");
             return;
         }
 

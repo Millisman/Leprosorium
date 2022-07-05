@@ -2,7 +2,6 @@
 
 #if defined (__AVR__) || defined (__AVR_ARCH__)
 
-#include "uart.h"
 #include "errno-base.h"
 #include <util/twi.h>
 
@@ -65,23 +64,90 @@ ISR(INT1_vect) {
 
 
 
+#define USART0_TX_BUFFER_SIZE 128
+
+static volatile uint8_t USART0_TX_BUFFER[USART0_TX_BUFFER_SIZE];
+static volatile uint8_t USART0_TX_BUFFER_HEAD;
+static volatile uint8_t USART0_TX_BUFFER_TAIL;
+
+ISR(USART_TX_vect) {
+    if (USART0_TX_BUFFER_HEAD != USART0_TX_BUFFER_TAIL) {
+        uint8_t c = USART0_TX_BUFFER[USART0_TX_BUFFER_TAIL];
+        if (++USART0_TX_BUFFER_TAIL >= USART0_TX_BUFFER_SIZE) USART0_TX_BUFFER_TAIL = 0;  // хвост двигаем
+        UDR0 = c;
+    }
+}
+
+
+// void enable_TxRx()  { UCSR0B |=  ((1 << RXEN0) | (1 << TXEN0)); }
+// void disable_TXRx() { UCSR0B &= ~((1 << RXEN0) | (1 << TXEN0)); }
+
+
+void usart0_write(const uint8_t data) {
+    uint8_t i = (USART0_TX_BUFFER_HEAD + 1 >= USART0_TX_BUFFER_SIZE) ? 0 : USART0_TX_BUFFER_HEAD + 1;
+    while ( (i + 1) == USART0_TX_BUFFER_TAIL);
+    if (i != USART0_TX_BUFFER_TAIL) {
+        USART0_TX_BUFFER[USART0_TX_BUFFER_HEAD] = data;
+        USART0_TX_BUFFER_HEAD = i;
+    }
+    while (!(UCSR0A & (1 << UDRE0)));
+    if (USART0_TX_BUFFER_HEAD != USART0_TX_BUFFER_TAIL) {
+        uint8_t c = USART0_TX_BUFFER[USART0_TX_BUFFER_TAIL];
+        if (++USART0_TX_BUFFER_TAIL >= USART0_TX_BUFFER_SIZE) USART0_TX_BUFFER_TAIL = 0;  // хвост двигаем
+        UDR0 = c;
+    }
+}
+
 int uart0_putc2(char ch, FILE *stream) {
-    if (ch == '\n') uart0_putc2('\r', stream);
-    uart0_putc(ch);
+    (void)stream;
+    if (ch == '\n') usart0_write('\r');
+    usart0_write(ch);
     return 0;
 }
 
 
-// int
-// uart_putchar(char c)
-// {
-//     
-// //     if (c == '\n')
-// //         uart_putchar('\r');
-// //     loop_until_bit_is_set(UCSRA, UDRE);
-// //     UDR = c;
-//     return 0;
-// }
+
+
+#define USART0_RX_BUFFER_SIZE 128
+
+static volatile bool Activity;
+static volatile uint8_t USART0_RX_BUFFER[USART0_RX_BUFFER_SIZE];
+static volatile uint8_t USART0_RX_BUFFER_HEAD;
+static volatile uint8_t USART0_RX_BUFFER_TAIL;
+
+ISR(USART_RX_vect) {
+    if (bit_is_set(UCSR0A, UPE0)) {
+        UDR0;
+    } else {
+        Activity = true;
+        uint8_t c = UDR0;
+        uint8_t i = (USART0_RX_BUFFER_HEAD + 1 >= USART0_RX_BUFFER_SIZE) ? 0 : USART0_RX_BUFFER_HEAD + 1;
+        if (i != USART0_RX_BUFFER_TAIL) {
+            USART0_RX_BUFFER[USART0_RX_BUFFER_HEAD] = c;
+            USART0_RX_BUFFER_HEAD = i;
+        }
+    }
+}
+
+
+
+uint8_t usart0_read() {
+    if (USART0_RX_BUFFER_HEAD == USART0_RX_BUFFER_TAIL) return 0;
+    uint8_t c = USART0_RX_BUFFER[USART0_RX_BUFFER_TAIL];
+    if (++USART0_RX_BUFFER_TAIL >= USART0_RX_BUFFER_SIZE) USART0_RX_BUFFER_TAIL = 0;  // хвост двигаем
+    return c;
+}
+
+uint16_t usart0_avail() {
+    return ((uint16_t)(USART0_RX_BUFFER_SIZE + USART0_RX_BUFFER_HEAD - USART0_RX_BUFFER_TAIL)) % USART0_RX_BUFFER_SIZE;
+}
+
+
+
+
+
+
+
 
 
 
@@ -92,10 +158,24 @@ int uart0_putc2(char ch, FILE *stream) {
 static FILE uart0_file;
 
 void mcu_init() {
-    fdevopen(uart0_putc2, NULL);
-        // // //     fdev_setup_stream( &uart0_file, uart0_putc2, NULL, _FDEV_SETUP_WRITE);
-        // // //     uart0_init(UART_BAUD_SELECT(115200, F_CPU));
-        // // //     stdout = &uart0_file;
+    
+    USART0_RX_BUFFER_HEAD = 0;
+    USART0_RX_BUFFER_TAIL = 0;
+    USART0_TX_BUFFER_HEAD = 0;
+    USART0_TX_BUFFER_TAIL = 0;
+    UCSR0A = 1 << U2X0;
+    uint16_t baud_setting = (F_CPU / 4 / 115200 - 1) / 2;
+    UBRR0H = baud_setting >> 8;
+    UBRR0L = baud_setting;
+    
+    UCSR0B  = (1 << TXEN0) | (1 << TXCIE0);
+    UCSR0B |= (1 << RXEN0) | (1 << RXCIE0);
+    
+    UCSR0C = (1 << UCSZ01) | (1<<UCSZ00);
+    sei();
+    
+    fdev_setup_stream( &uart0_file, uart0_putc2, NULL, _FDEV_SETUP_WRITE);
+    stdout = &uart0_file;
     printf_P(PSTR("mcu_init\n"));
     
     
@@ -155,14 +235,14 @@ uint8_t i2c_master_io(const uint8_t addr, uint8_t *data, const uint8_t len) {
 
 int8_t i2c_write(const uint8_t *buf, uint8_t num_bytes, uint8_t addr)
 {
-    printf_P(PSTR("\ni2c_write(buf=%s, uint32_t num_bytes=%u, uint16_t addr=%u)\n"), buf, num_bytes, addr);
+    //printf_P(PSTR("\ni2c_write(buf=%s, uint32_t num_bytes=%u, uint16_t addr=%u)\n"), buf, num_bytes, addr);
     if (i2c_master_io(TW_WRITE | (addr << 1), (uint8_t *)buf, num_bytes) != 0) return -EIO;
     return 0; // 0 - successful, or -EIO General - input / output error.
 }
 
 int8_t i2c_read(uint8_t *buf, uint8_t num_bytes, uint8_t addr)
 {
-    printf_P(PSTR("\ni2c_read(buf=%s, uint32_t num_bytes=%u, uint16_t addr=%u)\n"), buf, num_bytes, addr);
+    //printf_P(PSTR("\ni2c_read(buf=%s, uint32_t num_bytes=%u, uint16_t addr=%u)\n"), buf, num_bytes, addr);
     if (i2c_master_io(TW_READ | (addr << 1), buf, num_bytes) != 0) return -EIO;
     return 0;
 }

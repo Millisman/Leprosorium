@@ -1,5 +1,6 @@
 #pragma once
 
+#include "config.h"
 #include <stdint.h>
 #include <stdio.h>
 #include <time.h>
@@ -121,3 +122,4 @@ void leds_chg_set(bool on);
 void leds_dis_set(bool on);
 
 
+void usart0_write(const uint8_t data);
