@@ -45,7 +45,7 @@ void eeprom_restore_data() {
         eeprom_read_block(&buf.buf, &EE_DataStruct.buf, sizeof(buf.buf));
 
         printf_P(PSTR("Data (len=%u): "), buf.header.len);
-        for (int i = 0; i < buf.header.len; i++) printf_P(PSTR("%.2x "), buf.buf[i]);
+        for (uint16_t i = 0; i < buf.header.len; i++) printf_P(PSTR("%.2x "), buf.buf[i]);
 
         if (_calc_crc(buf.buf, buf.header.len) == buf.header.crc) {
             int status = 0; //ts.bin_import(buf, sizeof(buf), TS_WRITE_MASK, SUBSET_NVM);
@@ -69,7 +69,7 @@ void eeprom_store_data()
     buf.header.crc = _calc_crc(buf.buf, buf.header.len);
     
     printf_P(PSTR("Data (len=%d): "), buf.header.len);
-    for (int i = 0; i < buf.header.len; i++) printf_P(PSTR("%.2x "), buf.buf[i]);
+    for (uint16_t i = 0; i < buf.header.len; i++) printf_P(PSTR("%.2x "), buf.buf[i]);
 
     // printf_P(PSTR("Header: %.2x %.2x %.2x %.2x %.2x %.2x %.2x %.2x\n",
     //     buf[0], buf[1], buf[2], buf[3], buf[4], buf[5], buf[6], buf[7]);

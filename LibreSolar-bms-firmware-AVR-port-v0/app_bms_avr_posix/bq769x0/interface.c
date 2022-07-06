@@ -14,8 +14,8 @@
 #include "../errno-base.h"
 #include "../helper.h"
 
-extern int adc_gain;   // factory-calibrated, read out from chip (uV/LSB)
-extern int adc_offset; // factory-calibrated, read out from chip (mV)
+extern int16_t adc_gain;   // factory-calibrated, read out from chip (uV/LSB)
+extern int8_t adc_offset; // factory-calibrated, read out from chip (mV)
 
 // indicates if a new current reading or an error is available from BMS IC
 extern bool alert_interrupt_flag;
@@ -138,7 +138,7 @@ int bq769x0_init()
         bq769x0_write_byte(BQ769X0_SYS_CTRL1, 0b00011000); // switch external thermistor and ADC on
         bq769x0_write_byte(BQ769X0_SYS_CTRL2, 0b01000000); // switch CC_EN on
         // get ADC offset and gain
-        adc_offset = (signed int)bq769x0_read_byte(BQ769X0_ADCOFFSET); // 2's complement
+        adc_offset = (int8_t)bq769x0_read_byte(BQ769X0_ADCOFFSET); // 2's complement
         adc_gain = 365
                    + (((bq769x0_read_byte(BQ769X0_ADCGAIN1) & 0b00001100) << 1)
                       | ((bq769x0_read_byte(BQ769X0_ADCGAIN2) & 0b11100000) >> 5)); // uV/LSB

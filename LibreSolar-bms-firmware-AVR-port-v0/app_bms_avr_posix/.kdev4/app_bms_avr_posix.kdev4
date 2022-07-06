@@ -10,7 +10,12 @@ parserArgumentsOpenCL=-ferror-limit=100 -fspell-checking -Wdocumentation -Wunuse
 Name=Clang
 
 [CustomDefinesAndIncludes][ProjectPath0][Defines]
+F_CPU=
+__AVR_ATmega328P__=
 __AVR__=
+
+[CustomDefinesAndIncludes][ProjectPath0][Includes]
+1=/usr/avr/sys-root/include
 
 [Project]
 VersionControlSupport=kdevgit

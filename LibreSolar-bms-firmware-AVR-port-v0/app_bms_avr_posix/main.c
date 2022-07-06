@@ -14,8 +14,8 @@
 #include <math.h>
 
 Bms bms;
-volatile int adc_gain;   // factory-calibrated, read out from chip (uV/LSB)
-volatile int adc_offset; // factory-calibrated, read out from chip (mV)
+volatile int16_t adc_gain;   // factory-calibrated, read out from chip (uV/LSB)
+volatile int8_t adc_offset; // factory-calibrated, read out from chip (mV)
 
 volatile bool       alert_interrupt_flag;
 volatile time_t     alert_interrupt_timestamp;
@@ -115,8 +115,13 @@ void pppf() {
     //TS_GROUP(ID_MEAS, "Meas", TS_NO_CALLBACK, ID_ROOT),
     printf_P(PSTR("Bat V=%.2f\n"), bms.status.pack_voltage);
     printf_P(PSTR("Bat A=%.2f\n"), bms.status.pack_current);
-    printf_P(PSTR("Bat degC=%.1f\n"), bms.status.bat_temp_avg);
-    printf_P(PSTR("IC degC=%.1f\n"), bms.status.ic_temp);
+    //printf_P(PSTR("Bat degC=%.1f\n"), bms.status.bat_temp_avg);
+    //printf_P(PSTR("IC degC=%.1f\n"), bms.status.ic_temp);
+    printf_P(PSTR("Bat Temp degC %.1f %.1f %.1f\n"), bms.status.bat_temps[0],bms.status.bat_temps[1],bms.status.bat_temps[2]);
+    
+    
+    
+    
 #ifdef CONFIG_ISL94202   // currently only implemented in ISL94202-based boards (using TS2)
 printf_P(PSTR("MOSFET_degC="), &bms.status.mosfet_temp, 4);
 #endif
@@ -165,8 +170,70 @@ int main(void) {
                     break;
                     
                 case Init_Config:
-                    bms_init_status(&bms);
-                    bms_init_config(&bms, CONFIG_CELL_TYPE, CONFIG_BAT_CAPACITY_AH);
+                    //bms_init_status(&bms);
+                    //bms_init_config(&bms, CONFIG_CELL_TYPE, CONFIG_BAT_CAPACITY_AH);
+                    
+                    
+                    // maps for settings in protection registers
+                    // static const uint16_t SCD_delay_setting[4] = { 70, 100, 200, 400 };                       // us
+                    // static const uint16_t SCD_threshold_setting[8] = { 44, 67, 89, 111, 133, 155, 178, 200 }; // mV
+                    // 
+                    // static const uint16_t OCD_delay_setting[8] = { 8, 20, 40, 80, 160, 320, 640, 1280 }; // ms
+                    // static const uint16_t OCD_threshold_setting[16] = { 17, 22, 28, 33, 39, 44, 50, 56,
+                    //     61, 67, 72, 78, 83, 89, 94, 100 }; // mV
+                    //     
+                    // static const uint16_t UV_delay_setting[4] = { 1, 4, 8, 16 }; // s
+                    // static const uint16_t OV_delay_setting[4] = { 1, 2, 4, 8 };  // s
+                    
+                    bms.status.chg_enable = true;
+                    bms.status.dis_enable = true;
+                    
+                    bms.conf.auto_balancing_enabled = true;
+                    bms.conf.bal_idle_delay = 1800;          // default: 30 minutes
+                    bms.conf.bal_idle_current = 0.1F;        // A
+                    bms.conf.bal_cell_voltage_diff = 0.005F; // 5 mV
+                    
+                    bms.conf.thermistor_beta = 3435; // typical value for Semitec 103AT-5 thermistor
+                    bms.conf.nominal_capacity_Ah = 12.0F;
+                    bms.conf.dis_oc_limit = 35.0F;
+                    bms.conf.chg_oc_limit = 5.0F;
+                    
+                    // static const uint16_t OCD_delay_setting[8] = { 8, 20, 40, 80, 160, 320, 640, 1280 }; // ms
+                    // static const uint16_t OCD_threshold_setting[16] = { 17, 22, 28, 33, 39, 44, 50, 56,
+                    bms.conf.dis_oc_delay_ms = 320;
+                    bms.conf.chg_oc_delay_ms = 320;
+                    
+                    // static const uint16_t SCD_delay_setting[4] = { 70, 100, 200, 400 };                       // us
+                    // static const uint16_t SCD_threshold_setting[8] = { 44, 67, 89, 111, 133, 155, 178, 200 }; // mV
+                    bms.conf.dis_sc_limit = 80.0F; //bms.conf.dis_oc_limit * 2;
+                    bms.conf.dis_sc_delay_us = 180;
+                    
+                    bms.conf.dis_ut_limit = -20.0F;
+                    bms.conf.dis_ot_limit = 65.0F;
+                    bms.conf.chg_ut_limit = 0.0F;
+                    bms.conf.chg_ot_limit = 50.0F;
+                    bms.conf.t_limit_hyst = 5.0F;
+                    
+                    bms.conf.shunt_res_mOhm = 1.0F;
+                    
+                    // static const uint16_t UV_delay_setting[4] = { 1, 4, 8, 16 }; // s
+                    // static const uint16_t OV_delay_setting[4] = { 1, 2, 4, 8 };  // s
+                    bms.conf.cell_ov_delay_ms = 2500;
+                    bms.conf.cell_uv_delay_ms = 3000;
+                    
+                    
+                    bms.conf.cell_ov_limit = 4.25F;
+                    bms.conf.cell_chg_voltage = 4.20F;
+                    bms.conf.cell_ov_reset = 4.10F;
+                    bms.conf.bal_cell_voltage_min = 3.80F;
+                    bms.conf.cell_uv_reset = 3.50F;
+                    bms.conf.cell_dis_voltage = 3.20F;
+                    bms.conf.cell_uv_limit = 3.00F;
+                    bms.conf.ocv = NULL;
+                    bms.conf.num_ocv_points = 0;
+                    
+                    
+                    
                     main_init = Init_BMS_Hardware;
                     printf_P(PSTR("Config init OK\n"));
                     break;
@@ -176,10 +243,6 @@ int main(void) {
                         printf_P(PSTR("BMS hardware initialization failed\n"));
                     } else {
                         main_init = Apply_BMS;
-                        
-//                         Bms bms;
-//                         volatile int adc_gain;   // factory-calibrated, read out from chip (uV/LSB)
-//                         volatile int adc_offset; // factory-calibrated, read out from chip (mV)
                         
                         printf_P(PSTR("adc_gain=%d uV/LSB, adc_offset=%d mV\n"), adc_gain, adc_offset);
                         
@@ -201,6 +264,7 @@ int main(void) {
                     bms_update(&bms);
                     bms_soc_reset(&bms, -1);
                     main_init = Update_BMS;
+                    pppf();
                     printf_P(PSTR("Apply param OK\n"));
                     break;
                     
@@ -223,7 +287,10 @@ int main(void) {
             exec_1s = time_now;
             if (main_init == Update_BMS) {
                 //bms_print_registers();
-                pppf();
+                for (uint8_t x = 0; x < BOARD_NUM_CELLS_MAX; ++x) {
+                    printf_P(PSTR("%.3f;"), bms.status.cell_voltages[x]);
+                }
+                printf_P(PSTR("\n"));
             }
         }
         

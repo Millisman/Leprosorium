@@ -22,8 +22,11 @@
 #define ARRAY_SIZE(array) (sizeof(array) / sizeof((array)[0]))
 
 
-extern int adc_gain;   // factory-calibrated, read out from chip (uV/LSB)
-extern int adc_offset; // factory-calibrated, read out from chip (mV)
+extern int16_t adc_gain;   // factory-calibrated, read out from chip (uV/LSB)
+extern int8_t adc_offset; // factory-calibrated, read out from chip (mV)
+
+// extern int adc_gain;   // factory-calibrated, read out from chip (uV/LSB)
+// extern int adc_offset; // factory-calibrated, read out from chip (mV)
 
 /**
  * Checks if temperatures are within the limits, otherwise disables CHG/DSG FET

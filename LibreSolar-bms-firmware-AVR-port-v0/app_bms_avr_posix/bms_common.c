@@ -228,7 +228,7 @@ bool bms_dis_allowed(Bms *bms)
 
 bool bms_balancing_allowed(Bms *bms)
 {
-    int idle_sec = uptime2() - bms->status.no_idle_timestamp;
+    uint32_t idle_sec = uptime2() - bms->status.no_idle_timestamp;
     float voltage_diff = bms->status.cell_voltage_max - bms->status.cell_voltage_min;
 
     return idle_sec >= bms->conf.bal_idle_delay
