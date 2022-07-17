@@ -1,6 +1,6 @@
 include Makefile.inc
 
-LIBS = bq769x0
+LIBS = bq769x0 avr
 
 CXXFLAGS = $(PRJCXXFLAGS) -I.
 

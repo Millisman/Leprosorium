@@ -419,9 +419,10 @@ void bms_read_current(Bms *bms)
 
     // check if new current reading available
     if (sys_stat.flags.CC_READY == 1) {
-        int adc_raw = bq769x0_read_word(BQ769X0_CC_HI_BYTE);
-        if (adc_raw < 0) {
-            LOG_ERR("Error reading current measurement\n");
+
+        int32_t adc_raw = bq769x0_read_word(BQ769X0_CC_HI_BYTE);
+        if (adc_raw == -1) {
+            //LOG_ERR("Error reading current measurement\n");
             return;
         }
 
@@ -589,14 +590,14 @@ void bms_handle_errors(Bms *bms)
                 }
             }
             if (sys_stat.flags.SCD) {
-                if (sec_since_error % 60 == 0) {
+                if (sec_since_error % 2 == 0) {
                     LOG_INF("Attempting to clear SCD error\n");
                     bq769x0_write_byte(BQ769X0_SYS_STAT, BQ769X0_SYS_STAT_SCD);
                     bms_dis_switch(bms, true);
                 }
             }
             if (sys_stat.flags.OCD) {
-                if (sec_since_error % 60 == 0) {
+                if (sec_since_error % 2 == 0) {
                     LOG_INF("Attempting to clear OCD error\n");
                     bq769x0_write_byte(BQ769X0_SYS_STAT, BQ769X0_SYS_STAT_OCD);
                     bms_dis_switch(bms, true);

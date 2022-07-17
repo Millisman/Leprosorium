@@ -5,6 +5,8 @@
 #include "errno-base.h"
 #include <util/twi.h>
 
+
+
 #define clockCyclesPerMicrosecond() ( F_CPU / 1000000L )
 #define clockCyclesToMicroseconds(a) ( (a) / clockCyclesPerMicrosecond() )
 #define MICROSECONDS_PER_TIMER2_OVERFLOW    (clockCyclesToMicroseconds(64 * 256))
@@ -13,143 +15,96 @@
 #define FRACT2_MAX      (1000 >> 3)
 #define MICROS2_MULT    (64 / clockCyclesPerMicrosecond())
 
-volatile uint32_t   timer2_millis   = 0;
-volatile uint32_t   timer2_uptime_s = 0;
-static uint8_t      timer2_fract    = 0;
-static uint16_t     timer2_kilovar  = 0;
-
-ISR(TIMER2_OVF_vect) {
-    timer2_millis += MILLIS2_INC;
-    timer2_fract += FRACT2_INC;
-    if (timer2_fract >= FRACT2_MAX) {
-        timer2_fract -= FRACT2_MAX;
-        timer2_millis++;
-        timer2_kilovar++;
-        if (timer2_kilovar > 999) {
-            timer2_uptime_s++;
-            timer2_kilovar = 0;
-        }
-    }
-}
-
-uint32_t millis2() {
-    uint8_t oldSREG = SREG;
-    cli();
-    uint32_t m = timer2_millis;
-    SREG = oldSREG;
-    return m;
-}
-
-uint32_t uptime2() {
-    uint8_t oldSREG = SREG;
-    cli();
-    uint32_t m = timer2_uptime_s;
-    SREG = oldSREG;
-    return m;
-}
-
-
 extern bool     alert_interrupt_flag;
 extern time_t   alert_interrupt_timestamp;
 
+#define PIN_ALERT_BQ D,2,H
+
+static volatile bool        _flag_250ms = false;
+static volatile bool        _flag_1_sec = false;
+static volatile uint8_t     counter_3       = 0;
+static volatile uint8_t     counter_250     = 0;
+static volatile uint8_t     counter_250x4   = 0;
+static volatile uint32_t    timer2_millis   = 0;
+static volatile uint32_t    timer2_uptime_s = 0;
+
+ISR(TIMER2_COMPA_vect) {
+    ++counter_3;
+    if ( counter_3 >= 3) {
+        counter_3 = 0;
+        timer2_millis  += 2;
+        counter_250 += 2;
+
+        if ( counter_250 >= 250) {
+            counter_250 = 0;
+            _flag_250ms = 1;
+
+            ++counter_250x4;
+            if ( counter_250x4 >= 4) {
+                counter_250x4 = 0;
+                ++timer2_uptime_s;
+                _flag_1_sec = 1;
+            }
+
+            if (ACTIVE(PIN_ALERT_BQ)) {
+                alert_interrupt_timestamp = timer2_uptime_s;
+                alert_interrupt_flag = true;
+            }
+
+        }
+
+     } /*else {
+         sleep_enable();
+         sleep_cpu();
+    }*/
+}
+
+uint32_t millis2() {
+    uint32_t r;
+    ATOMIC_BLOCK(ATOMIC_FORCEON) { r = timer2_millis; }
+    return r;
+}
+
+uint32_t uptime2() {
+    uint32_t r;
+    ATOMIC_BLOCK(ATOMIC_FORCEON) { r = timer2_uptime_s; }
+    return r;
+}
+
+bool elapsed_250ms() {
+    if (_flag_250ms) {
+        ATOMIC_BLOCK(ATOMIC_FORCEON) { _flag_250ms = false; }
+        return true;
+    }
+    return false;
+}
+
+
+bool elapsed_one_sec() {
+    if (_flag_1_sec) {
+        ATOMIC_BLOCK(ATOMIC_FORCEON) { _flag_1_sec = false; }
+        return true;
+    }
+    return false;
+}
+
 ISR(INT0_vect) {
-    alert_interrupt_timestamp = uptime2();
+    alert_interrupt_timestamp = timer2_uptime_s;
     alert_interrupt_flag = true;
 }
 
 extern uint32_t time_pressed;
+
 ISR(INT1_vect) {
     time_pressed = millis2();
 }
 
-
-
-#define USART0_TX_BUFFER_SIZE 128
-
-static volatile uint8_t USART0_TX_BUFFER[USART0_TX_BUFFER_SIZE];
-static volatile uint8_t USART0_TX_BUFFER_HEAD;
-static volatile uint8_t USART0_TX_BUFFER_TAIL;
-
-ISR(USART_TX_vect) {
-    if (USART0_TX_BUFFER_HEAD != USART0_TX_BUFFER_TAIL) {
-        uint8_t c = USART0_TX_BUFFER[USART0_TX_BUFFER_TAIL];
-        if (++USART0_TX_BUFFER_TAIL >= USART0_TX_BUFFER_SIZE) USART0_TX_BUFFER_TAIL = 0;  // хвост двигаем
-        UDR0 = c;
-    }
-}
-
-
-// void enable_TxRx()  { UCSR0B |=  ((1 << RXEN0) | (1 << TXEN0)); }
-// void disable_TXRx() { UCSR0B &= ~((1 << RXEN0) | (1 << TXEN0)); }
-
-
-void usart0_write(const uint8_t data) {
-    uint8_t i = (USART0_TX_BUFFER_HEAD + 1 >= USART0_TX_BUFFER_SIZE) ? 0 : USART0_TX_BUFFER_HEAD + 1;
-    while ( (i + 1) == USART0_TX_BUFFER_TAIL);
-    if (i != USART0_TX_BUFFER_TAIL) {
-        USART0_TX_BUFFER[USART0_TX_BUFFER_HEAD] = data;
-        USART0_TX_BUFFER_HEAD = i;
-    }
-    while (!(UCSR0A & (1 << UDRE0)));
-    if (USART0_TX_BUFFER_HEAD != USART0_TX_BUFFER_TAIL) {
-        uint8_t c = USART0_TX_BUFFER[USART0_TX_BUFFER_TAIL];
-        if (++USART0_TX_BUFFER_TAIL >= USART0_TX_BUFFER_SIZE) USART0_TX_BUFFER_TAIL = 0;  // хвост двигаем
-        UDR0 = c;
-    }
-}
-
 int uart0_putc2(char ch, FILE *stream) {
     (void)stream;
-    if (ch == '\n') usart0_write('\r');
-    usart0_write(ch);
+    if (ch == '\n') uart0_putc('\r');
+    uart0_putc(ch);
     return 0;
 }
-
-
-
-
-#define USART0_RX_BUFFER_SIZE 128
-
-static volatile bool Activity;
-static volatile uint8_t USART0_RX_BUFFER[USART0_RX_BUFFER_SIZE];
-static volatile uint8_t USART0_RX_BUFFER_HEAD;
-static volatile uint8_t USART0_RX_BUFFER_TAIL;
-
-ISR(USART_RX_vect) {
-    if (bit_is_set(UCSR0A, UPE0)) {
-        UDR0;
-    } else {
-        Activity = true;
-        uint8_t c = UDR0;
-        uint8_t i = (USART0_RX_BUFFER_HEAD + 1 >= USART0_RX_BUFFER_SIZE) ? 0 : USART0_RX_BUFFER_HEAD + 1;
-        if (i != USART0_RX_BUFFER_TAIL) {
-            USART0_RX_BUFFER[USART0_RX_BUFFER_HEAD] = c;
-            USART0_RX_BUFFER_HEAD = i;
-        }
-    }
-}
-
-
-
-uint8_t usart0_read() {
-    if (USART0_RX_BUFFER_HEAD == USART0_RX_BUFFER_TAIL) return 0;
-    uint8_t c = USART0_RX_BUFFER[USART0_RX_BUFFER_TAIL];
-    if (++USART0_RX_BUFFER_TAIL >= USART0_RX_BUFFER_SIZE) USART0_RX_BUFFER_TAIL = 0;  // хвост двигаем
-    return c;
-}
-
-uint16_t usart0_avail() {
-    return ((uint16_t)(USART0_RX_BUFFER_SIZE + USART0_RX_BUFFER_HEAD - USART0_RX_BUFFER_TAIL)) % USART0_RX_BUFFER_SIZE;
-}
-
-
-
-
-
-
-
-
-
 
 #define CHANGE  1
 #define FALLING 2
@@ -158,40 +113,61 @@ uint16_t usart0_avail() {
 static FILE uart0_file;
 
 void mcu_init() {
-    
-    USART0_RX_BUFFER_HEAD = 0;
-    USART0_RX_BUFFER_TAIL = 0;
-    USART0_TX_BUFFER_HEAD = 0;
-    USART0_TX_BUFFER_TAIL = 0;
-    UCSR0A = 1 << U2X0;
-    uint16_t baud_setting = (F_CPU / 4 / 115200 - 1) / 2;
-    UBRR0H = baud_setting >> 8;
-    UBRR0L = baud_setting;
-    
-    UCSR0B  = (1 << TXEN0) | (1 << TXCIE0);
-    UCSR0B |= (1 << RXEN0) | (1 << RXCIE0);
-    
-    UCSR0C = (1 << UCSZ01) | (1<<UCSZ00);
-    sei();
-    
-    fdev_setup_stream( &uart0_file, uart0_putc2, NULL, _FDEV_SETUP_WRITE);
-    stdout = &uart0_file;
-    printf_P(PSTR("mcu_init\n"));
-    
-    
-    // -------- Timer2 init for millis2
-    TCCR2A = (1 << WGM20) | (1 << WGM21);
-    TCCR2B = 1 << CS22;
-    TIMSK2 = 1 << TOIE2;
+    MCUSR = 0;
+    wdt_disable();
+    power_adc_disable();
+    power_spi_disable();
+    power_timer0_disable();
+    power_timer1_disable();
 
-    // -------- Int0 init - ALERT
+//     wdt_enable(WDTO_2S);
+//     wdt_reset();
+
+
+
+    // http://www.8bit-era.cz/arduino-timer-interrupts-calculator.html
+    // -------- Timer2 init for millis2
+    // TIMER 2 for interrupt frequency 750 Hz: // 3 tick = 4ms on 12mHz
+
+    // TIMER 2 for interrupt frequency 1556.0165975103735 Hz:
+    cli(); // stop interrupts
+    TCCR2A = 0; // set entire TCCR2A register to 0
+    TCCR2B = 0; // same for TCCR2B
+    TCNT2  = 0; // initialize counter value to 0
+    // set compare match register for 1556.0165975103735 Hz increments
+    OCR2A = 240; // = 12000000 / (32 * 1556.0165975103735) - 1 (must be <256)
+    // turn on CTC mode
+    TCCR2B |= (1 << WGM21);
+    // Set CS22, CS21 and CS20 bits for 32 prescaler
+    TCCR2B |= (0 << CS22) | (1 << CS21) | (1 << CS20);
+    // enable timer compare interrupt
+    TIMSK2 |= (1 << OCIE2A);
+    sei(); // allow interrupts
+
+
+    // -------- Int0 init - ALERT   PD2
     EICRA = (1 << ISC01) | (1 << ISC00) | (RISING << ISC00);
     EIMSK = (1 << INT0);
 
-    // -------- Int1 init - BUTTON
+    // -------- Int1 init - BUTTON  PD3
     EICRA = (1 << ISC11) | (1 << ISC10) | (FALLING << ISC10);
     EIMSK = (1 << INT1);
-    
+
+    uart0_init(UART_BAUD_SELECT_DOUBLE_SPEED(115200, 12000000L));
+    //     millis_begin();
+    //     fdev_setup_stream( &file_uart0, putc_uart0, NULL, _FDEV_SETUP_WRITE);
+    //     stdout = &file_uart0; //  = stdin = stderr
+    //     // fdev_setup_stream( &file_lcd0, putc_lcd0,   NULL, _FDEV_SETUP_WRITE);
+    //     // stderr = &file_lcd0;
+    //     sei();
+
+    fdev_setup_stream( &uart0_file, uart0_putc2, NULL, _FDEV_SETUP_WRITE);
+    stdout = &uart0_file;
+
+    DRIVER(PIN_ALERT_BQ, IN); //as input
+    sei();
+    printf_P(PSTR("mcu_init\n"));
+
 }
 
 // https://ccrma.stanford.edu/courses/250a-fall-2005/docs/avr-libc-user-manual-1.2.5/group__twi__demo.html
@@ -218,6 +194,7 @@ void i2c_master_init() {
 
 
 uint8_t i2c_master_io(const uint8_t addr, uint8_t *data, const uint8_t len) {
+    power_twi_enable();
     twi_addr = addr;
     twi_data = data;
     twi_len = len;
@@ -225,13 +202,13 @@ uint8_t i2c_master_io(const uint8_t addr, uint8_t *data, const uint8_t len) {
     TWCR = I2C_START;
     while (TWCR & (1 << TWIE)) {
         if ((millis2() - startMs) > I2C_MASTER_TOT_MS) {
+            power_twi_disable();
             return 1;
         }
     };
+    power_twi_disable();
     return 0;
 }
-
-
 
 int8_t i2c_write(const uint8_t *buf, uint8_t num_bytes, uint8_t addr)
 {

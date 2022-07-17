@@ -12,9 +12,12 @@
 #include <avr/interrupt.h>
 #include <avr/eeprom.h>
 #include <avr/wdt.h>
+#include <avr/power.h>
+#include <avr/sleep.h>
 #include <util/atomic.h>
 #include <util/delay.h>
 #include "pin_macros.h"
+#include "avr/uart.h"
 
 #define I2C_MASTER_FREQ 100000UL
 #define I2C_MASTER_TOT_MS 4
@@ -105,6 +108,8 @@ int8_t i2c_read(uint8_t *buf, uint8_t num_bytes, uint8_t addr);
 void mcu_init();
 uint32_t millis2(); // timer ms counter
 uint32_t uptime2(); // uptime sec counter
+bool elapsed_250ms();
+bool elapsed_one_sec();
 
 /**
  * Init port
@@ -120,6 +125,3 @@ void leds_chg_set(bool on);
  * Set red discharging LED on or off
  */
 void leds_dis_set(bool on);
-
-
-void usart0_write(const uint8_t data);

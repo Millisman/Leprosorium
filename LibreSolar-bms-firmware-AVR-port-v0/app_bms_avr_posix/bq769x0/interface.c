@@ -64,7 +64,7 @@ uint8_t bq769x0_read_byte(uint8_t reg_addr)
     }
 }
 
-uint32_t bq769x0_read_word(uint8_t reg_addr)
+int32_t bq769x0_read_word(uint8_t reg_addr)
 {
     uint8_t buf[5];
 
