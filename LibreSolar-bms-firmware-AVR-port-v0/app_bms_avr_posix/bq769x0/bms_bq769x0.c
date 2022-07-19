@@ -451,7 +451,7 @@ void bms_read_current(Bms *bms)
 
 void bms_read_voltages(Bms *bms)
 {
-    uint32_t adc_raw = 0;
+    int32_t adc_raw = 0;
     int conn_cells = 0;
     float sum_voltages = 0;
     float v_max = 0, v_min = 10;
@@ -479,7 +479,7 @@ void bms_read_voltages(Bms *bms)
     // read battery pack voltage
     adc_raw = bq769x0_read_word(BQ769X0_BAT_HI_BYTE);
     bms->status.pack_voltage =
-        (4.0F * adc_gain * adc_raw * 1e-3F + bms->status.connected_cells * adc_offset) * 1e-3F;
+        (4.0F * adc_gain * (uint16_t)adc_raw * 1e-3F + bms->status.connected_cells * adc_offset) * 1e-3F;
 }
 
 void bms_update_error_flags(Bms *bms)
