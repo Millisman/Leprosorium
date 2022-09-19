@@ -23,6 +23,7 @@
 
 #include "hd44780_glut.h"
 
+#include "uart_modem.h"
 
 #define EESize 2048
 
@@ -133,17 +134,20 @@ int initGL(int w, int h) {
 
 uint8_t arrrt[EESize+1];
 
+
+uart_modem_t uart_modem;
+
 int main(int argc, char *argv[]) {
 
     if (argc < 2) {
         exit(EXIT_FAILURE);
     }
 
+    f.frequency = 20000000;
+    sprintf(f.mmcu, "atmega644p");
     sim_setup_firmware(argv[1], AVR_SEGMENT_OFFSET_FLASH, &f, argv[0]);
 
-    f.frequency = 20000000;
-    //sprintf(f.mmcu, "atmega644p");
-    avr = avr_make_mcu_by_name("atmega644p");
+    avr = avr_make_mcu_by_name(f.mmcu);
     if (!avr) {
         fprintf(stderr, "%s: AVR '%s' not known\n", argv[0], f.mmcu);
         exit(1);
@@ -153,6 +157,9 @@ int main(int argc, char *argv[]) {
     avr_load_firmware(avr, &f);
 
     eeprom_read_file(avr);
+
+    uart_modem_init(avr, &uart_modem);
+    uart_modem_connect(&uart_modem, '1');
 
     hd44780_init(avr, &hd44780, 16, 2);
 
