@@ -1,10 +1,15 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <libgen.h>
+#include <string.h>
 
 #include "sim_avr.h"
 #include "avr_ioport.h"
+#include "avr_eeprom.h"
 #include "sim_elf.h"
+
+#include "../../simavr/cores/sim_megax4.h"
+
 #include "sim_hex.h"
 #include "sim_gdb.h"
 #include "sim_vcd_file.h"
@@ -18,10 +23,14 @@
 
 #include "hd44780_glut.h"
 
+
+#define EESize 2048
+
+
 int window;
 
 avr_t *avr = NULL;
-
+elf_firmware_t f = {{0}};
 hd44780_t hd44780;
 
 int color = 0;
@@ -30,36 +39,27 @@ uint32_t colors[][4] = {
         { 0xaa0000ff, 0xcc0000ff, 0x000000ff, 0x00000055 },    // red
 };
 
-uint8_t eep[2048];
-
-#include <string.h>
-
-int error;
-
-void eeprom_read_file() {
-    FILE* file;
-    printf("Read eeprom.bin...");
-    file = fopen("eeprom.bin", "rb");
-    if (!file) {
-        printf("ERROR! Set 0xFF\n");
-        memset(&eep, 0xFF, sizeof(eep));
-        return;
-    }
-    error = fread(&eep, sizeof(eep), 1, file);
-    printf("OK!\n");
-    fclose(file);
-}
-
-void eeprom_write_file() {
-    FILE* file;
-    printf("Write eeprom.bin...");
-    file = fopen("eeprom.bin", "wb");
+void eeprom_read_file(avr_t *avr) {
+    struct mcu_t * mcu = (struct mcu_t*)avr;
+    printf("Read %d eeprom.bin...\n", mcu->eeprom.size);
+    FILE *file = fopen("eeprom.bin", "rb");
     if (!file) {
         printf("ERROR!\n");
         return;
     }
-    error = fwrite(&eep, sizeof(eep), 1, file);
-    printf("OK!\n");
+    fread(mcu->eeprom.eeprom , mcu->eeprom.size, 1, file);
+    fclose(file);
+}
+
+void eeprom_write_file(avr_t *avr) {
+    struct mcu_t * mcu = (struct mcu_t*)avr;
+    printf("Write %d eeprom.bin...\n", mcu->eeprom.size);
+    FILE *file = fopen("eeprom.bin", "wb");
+    if (!file) {
+        printf("ERROR!\n");
+        return;
+    }
+    fwrite(mcu->eeprom.eeprom , mcu->eeprom.size, 1, file);
     fclose(file);
 }
 
@@ -76,7 +76,7 @@ static void *avr_run_thread(void * ignore) {
 void keyCB(unsigned char key, int x, int y) {
     printf("Pressed key=%c, x=%d, y=%d\n\n", key, x, y);
     if (key == 'q') {
-        eeprom_write_file();
+        eeprom_write_file(avr);
         exit(EXIT_SUCCESS);
     }
 }
@@ -131,24 +131,19 @@ int initGL(int w, int h) {
     return 1;
 }
 
+uint8_t arrrt[EESize+1];
 
 int main(int argc, char *argv[]) {
 
-    elf_firmware_t f = {{0}};
     if (argc < 2) {
         exit(EXIT_FAILURE);
     }
 
     sim_setup_firmware(argv[1], AVR_SEGMENT_OFFSET_FLASH, &f, argv[0]);
 
-    eeprom_read_file();
-
-    f.eeprom = (uint8_t *)&eep;
-    f.eesize = sizeof(eep);
-
     f.frequency = 20000000;
-     sprintf(f.mmcu, "atmega644p");
-    avr = avr_make_mcu_by_name(f.mmcu);
+    //sprintf(f.mmcu, "atmega644p");
+    avr = avr_make_mcu_by_name("atmega644p");
     if (!avr) {
         fprintf(stderr, "%s: AVR '%s' not known\n", argv[0], f.mmcu);
         exit(1);
@@ -156,6 +151,8 @@ int main(int argc, char *argv[]) {
 
     avr_init(avr);
     avr_load_firmware(avr, &f);
+
+    eeprom_read_file(avr);
 
     hd44780_init(avr, &hd44780, 16, 2);
 
