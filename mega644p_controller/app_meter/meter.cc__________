@@ -1,0 +1,276 @@
+// #include "meter.h"
+// #include <math.h>
+// // #include "pins.h"
+// // #include "mcu/spimaster.h"
+// // #include "mcu/timer.h"
+// #include <string.h>
+// #include <util/delay.h>
+// 
+// // // namespace meter {
+// 
+// // using stream::PGM;
+// // s_EMeter_Block EEMEM EEM_EMeter_Block;
+// 
+//     
+// // Meter::Meter():
+// //     cout(mcu::Serial0::init()),
+// //     settings(store::EepromSettings::init()),
+// //     ade(PIN_CS_ADE, SPI_CLOCK_DIV32) // SPI_CLOCK_DIV16
+// // {
+//     ade.setOpMode(SWRST); // reboot... Wait 18uS
+//     _delay_us(18); // TODO OMG-Blocking!
+// 
+//     state_energy = 0;
+//     state_measure = 0;
+//     moment_state = 0;
+// 
+//     cout << PGM << PSTR("Meter ADE7758\r\n");
+// 
+//     ade.setOpMode(0); // normal + frequency outputs enabled
+//     ade.setWavMode(0x80); // VARCF --> VA
+//     ade.setLcycMode(( ZXSEL_A | ZXSEL_B | ZXSEL_C | RSTREAD)); // LWATT | LVAR | LVA |
+//     ade.gainSetup(INTEGRATOR_OFF, FULLSCALESELECT_0_5V, GAIN_1, GAIN_1);
+//     ade.setLineCyc(16);
+//     
+//     // mSettings
+// //     CALIBRATE IRMS OFFSET
+// //     CALIBRATE VRMS OFFSET
+// //     CALIBRATE WATT AND VAGAIN PF = 1, SET UP PULSEOUTPUT FOR A, B, OR C
+// //     CALIBRATE VAR GAIN @ ITEST, PF = 0, INDUCTIVE
+// //     PHASE ERROR CAL? CALIBRATE PHASE @ ITEST,PF = 0.5,INDUCTIV
+// //     ALL PHASESVAR OFFSETCAL? SET UP PULSEOUTPUT FORA, B, OR C CALIBRATEVAR OFFSET@ IMIN, PF = 0,INDUCTIVE
+// //     WATT OFFSETCAL? SET UP PULSEOUTPUT FORA, B, OR C CALIBRATEWATT OFFSET@ IMIN, PF = 1
+// //     ade.setACurrentOffset(0); // max 4095
+// //     ade.setBCurrentOffset(0);
+// //     ade.setCCurrentOffset(0);
+// //     ade.setAVoltageOffset(0);
+// //     ade.setBVoltageOffset(0);
+// //     ade.setCVoltageOffset(0);
+// //     #define ADE7758_Reg_WDIV        0x42    // Read-Write 8b Unsigned Default: 0 Active   Energy Register Divider.
+// //     #define ADE7758_Reg_VARDIV      0x43    // Read-Write 8b Unsigned Default: 0 Reactive Energy Register Divider.
+// //     #define ADE7758_Reg_VADIV       0x44    // Read-Write 8b Unsigned Default: 0 Apparent Energy Register Divider.
+// //     
+//     
+//     print_Details();
+//     
+//     reset_SessEnergy();
+//     print_StoredEnergy();
+// }
+// 
+// int8_t Meter::get_TempC() {
+//     // Temp (°C) = [(read – offset) × 3°C/LSB] + tamb = 55°C
+//     return ((measure.TEMP - 215) * 3) + 20;
+// }
+// 
+// void Meter::print_Status() {
+//     if (Reg_STATUS) {
+//         if (Reg_STATUS & AEHF) { cout << PGM << PSTR("AEHF half\r\n"); }
+//         if (Reg_STATUS & REHF) { cout << PGM << PSTR("REHF half\r\n"); }
+//         if (Reg_STATUS & VAEHF) { cout << PGM << PSTR("VAEHF half\r\n"); }
+//         if (Reg_STATUS & SAGA) { cout << PGM << PSTR("SAG in A\r\n"); }
+//         if (Reg_STATUS & SAGB) { cout << PGM << PSTR("SAG in B\r\n"); }
+//         if (Reg_STATUS & SAGC) { cout << PGM << PSTR("SAG in C\r\n"); }
+//         if (Reg_STATUS & ZXTOA) { cout << PGM << PSTR("No ZC in A\r\n"); }
+//         if (Reg_STATUS & ZXTOB) { cout << PGM << PSTR("No ZC in B\r\n"); }
+//         if (Reg_STATUS & ZXTOC) { cout << PGM << PSTR("No ZC in C\r\n"); }
+//         if (Reg_STATUS & ZXA) { cout << PGM << PSTR("ZC in A\r\n"); }
+//         if (Reg_STATUS & ZXB) { cout << PGM << PSTR("ZC in B\r\n"); }
+//         if (Reg_STATUS & ZXC) { cout << PGM << PSTR("ZC in C\r\n"); }
+//         if (Reg_STATUS & LENERGY) { cout << PGM << PSTR("LENERGY\r\n"); }
+//         //if (Reg_STATUS & RESET) { cout << PGM << PSTR("RESET\r\n"); }
+//         if (Reg_STATUS & PKV) { cout << PGM << PSTR("Peak V!\r\n"); }
+//         if (Reg_STATUS & PKI) { cout << PGM << PSTR("Peak I!\r\n"); }
+//         //if (Reg_STATUS & WFSM) { cout << PGM << PSTR("WFSM\r\n"); }
+//         //if (Reg_STATUS & REVPAP) { cout << PGM << PSTR("REVPAP\r\n"); }
+//         //if (Reg_STATUS & REVPRP) { cout << PGM << PSTR("REVPRP\r\n"); }
+//         if (Reg_STATUS & SEQERR) { cout << PGM << PSTR("SEQERR/A-C-B\r\n"); }
+//     }
+// }
+// 
+// 
+// 
+// void Meter::onEvent(const event::Event& event) {
+//     if (event.id == events::UPDATE) {
+//         if (mcu::Timer::millis() - moment_state > 50) {
+//             moment_state = mcu::Timer::millis();
+//             if (state_energy == 0)  { SessEnergy.WATT_HR[0] += (int16_t)ade.read_16bit(ADE7758_Reg_AWATTHR); } else
+//             if (state_energy == 1)  { SessEnergy.VAR_HR[0]  += (int16_t)ade.read_16bit(ADE7758_Reg_AVARHR); } else
+//             if (state_energy == 2)  { SessEnergy.VA_HR[0]   += (int16_t)ade.read_16bit(ADE7758_Reg_AVAHR); } else
+//             if (state_energy == 3)  { SessEnergy.WATT_HR[1] += (int16_t)ade.read_16bit(ADE7758_Reg_BWATTHR); } else
+//             if (state_energy == 4)  { SessEnergy.VAR_HR[1]  += (int16_t)ade.read_16bit(ADE7758_Reg_BVARHR); } else
+//             if (state_energy == 5)  { SessEnergy.VA_HR[1]   += (int16_t)ade.read_16bit(ADE7758_Reg_BVAHR); } else
+//             if (state_energy == 6)  { SessEnergy.WATT_HR[2] += (int16_t)ade.read_16bit(ADE7758_Reg_CWATTHR); } else
+//             if (state_energy == 7)  { SessEnergy.VAR_HR[2]  += (int16_t)ade.read_16bit(ADE7758_Reg_CVARHR); } else
+//             if (state_energy == 8)  { SessEnergy.VA_HR[2]   += (int16_t)ade.read_16bit(ADE7758_Reg_CVAHR); }
+//             state_energy++;
+//             if (state_energy > 8) state_energy = 0;
+// 
+//             if (state_measure == 0) {
+//                 measure.VRMS[0] = ade.read_24bit(ADE7758_Reg_AVRMS);
+//                 measure.VRMS_MAX = measure.VRMS[0];
+//             } else if (state_measure == 1) {
+//                 measure.VRMS[1] = ade.read_24bit(ADE7758_Reg_BVRMS);
+//                 if (measure.VRMS[1] > measure.VRMS_MAX) { measure.VRMS_MAX = measure.VRMS[1]; }
+//             } else if (state_measure == 2) {
+//                 measure.VRMS[2] = ade.read_24bit(ADE7758_Reg_CVRMS);
+//                 if (measure.VRMS[2] > measure.VRMS_MAX) { measure.VRMS_MAX = measure.VRMS[2]; }
+//             } else if (state_measure == 3) {
+//                 measure.IRMS[0] = ade.read_24bit(ADE7758_Reg_AIRMS);
+//                 measure.IRMS_MAX = measure.IRMS[0];
+//             } else if (state_measure == 4) {
+//                 measure.IRMS[1] = ade.read_24bit(ADE7758_Reg_BIRMS);
+//                 if (measure.IRMS[1] > measure.IRMS_MAX) { measure.IRMS_MAX = measure.IRMS[1]; }
+//             } else if (state_measure == 5) {
+//                 measure.IRMS[2] = ade.read_24bit(ADE7758_Reg_CIRMS);
+//                 if (measure.IRMS[2] > measure.IRMS_MAX) { measure.IRMS_MAX = measure.IRMS[2]; }
+//             } else if (state_measure == 6) {
+//                 measure.FREQ =  ade.read_16bit(ADE7758_Reg_FREQ); } else
+//             if (state_measure == 7)  {
+//                 measure.WFORM = ade.read_24bit(ADE7758_Reg_WFORM);
+//             }
+//             state_measure++;
+//             if (state_measure > 7) state_measure = 0;
+//             
+//             
+//             Reg_STATUS_prev = Reg_STATUS;
+//             Reg_STATUS = ade.resetStatus();
+//             if (Reg_STATUS_prev != Reg_STATUS) {
+//                 //print_Status();
+//             }
+//             
+//         }
+//         
+//     } else if (event.id == events::TICK_1_SEC) {
+//         measure.TEMP = ade.read_8bit(ADE7758_Reg_TEMP);
+//         //print_Energy();
+//         //print_Measure();
+//     }
+// }
+// 
+// 
+// 
+// void Meter::print_Energy() {
+//     cout << PGM << PSTR("Energy (W*H,VAR*H,VA*H):\r\n");
+//     cout << PGM << PSTR("  A:") << 
+//     get_SessEnergy(EnergyType::W, Phase::A) << ',' <<
+//     get_SessEnergy(EnergyType::VAR, Phase::A) << ',' <<
+//     get_SessEnergy(EnergyType::VA, Phase::A) << EOL;
+//     cout << PGM << PSTR("  B:") << 
+//     get_SessEnergy(EnergyType::W, Phase::B) << ',' <<
+//     get_SessEnergy(EnergyType::VAR, Phase::B) << ',' <<
+//     get_SessEnergy(EnergyType::VA, Phase::B) << EOL;
+//     cout << PGM << PSTR("  C:") << 
+//     get_SessEnergy(EnergyType::W, Phase::C) << ',' <<
+//     get_SessEnergy(EnergyType::VAR, Phase::C) << ',' <<
+//     get_SessEnergy(EnergyType::VA, Phase::C) << EOL;
+//     cout << PGM << PSTR("SUM:") << 
+//     get_SessEnergy(EnergyType::W, Phase::SUMM) << ',' <<
+//     get_SessEnergy(EnergyType::VAR, Phase::SUMM) << ',' <<
+//     get_SessEnergy(EnergyType::VA, Phase::SUMM) << EOL;
+// }
+// 
+// 
+// // TODO PSTR DUPLICATES!
+// void Meter::print_StoredEnergy() {
+//     cout << PGM << PSTR("Stored Energy (W*H,VAR*H,VA*H): ") <<
+//     get_StoredEnergy(EnergyType::W) << ',' <<
+//     get_StoredEnergy(EnergyType::VAR) << ',' <<
+//     get_StoredEnergy(EnergyType::VA) << EOL;
+// }
+// 
+// void Meter::print_Details() {
+//     cout <<
+//     PGM << PSTR("Version: ") << ade.getVersion() <<
+//     PGM << PSTR(" TEMP: ") << ade.getTEMP() <<
+//     PGM << PSTR(" CHKSUM: ") << ade.getCHKSUM() <<
+//     PGM << PSTR("\r\nOpMode: ") << ade.getOpMode() <<
+//     PGM << PSTR(" MMode: ") << ade.getMMode() <<
+//     PGM << PSTR(" WavMode: ") << ade.getWavMode() <<
+//     PGM << PSTR("\r\nCompMode: ") << ade.getCompMode() <<
+//     PGM << PSTR(" LcycMode: ") << ade.getLcycMode() <<
+//     PGM << PSTR(" MaskInterrupts: ") << ade.getMaskInterrupts() <<
+//     PGM << PSTR("\r\nStatus: ") << ade.getStatus() <<
+//     PGM << PSTR(" Freq: ") << ade.getFreq() <<
+//     PGM << PSTR(" ZCTimeout: ") << ade.getZeroCrossingTimeout() <<
+//     PGM << PSTR("\r\nCurrentOffset A: ") << ade.getACurrentOffset() <<
+//     PGM << PSTR(" B: ") << ade.getBCurrentOffset() <<
+//     PGM << PSTR(" C: ") << ade.getCCurrentOffset() <<
+//     PGM << PSTR("\r\nVoltageOffset A: ") << ade.getAVoltageOffset() <<
+//     PGM << PSTR(" B: ") << ade.getBVoltageOffset() <<
+//     PGM << PSTR(" C: ") << ade.getCVoltageOffset() << EOL;
+// }
+// 
+// void Meter::print_Measure() {
+//     cout << 
+//     PGM << PSTR("\r\nA V=") << measure.VRMS[0] <<
+//     PGM << PSTR(" I=")      << measure.IRMS[0] <<
+//     PGM << PSTR("\r\nB V=") << measure.VRMS[0] <<
+//     PGM << PSTR(" I=")      << measure.IRMS[0] <<    
+//     PGM << PSTR("\r\nC V=") << measure.VRMS[0] <<
+//     PGM << PSTR(" I=")      << measure.IRMS[0] <<
+//     PGM << PSTR("\r\nFREQ=") << measure.FREQ <<
+//     PGM << PSTR(" TEMP=")    << measure.TEMP <<
+//     PGM << PSTR(" tC=")      << get_TempC() <<
+//     PGM << PSTR(" WFORM=")   << measure.WFORM <<
+//     EOL;
+// }
+// 
+// void Meter::reset_SessEnergy() { memset(&SessEnergy, 0, sizeof(SessEnergy)); }
+// 
+// int32_t Meter::get_SessEnergy(EnergyType et, Phase ph) {
+//     if (ph == SUMM) {
+//         if      (et == W)   { return SessEnergy.WATT_HR[0] + SessEnergy.WATT_HR[1] + SessEnergy.WATT_HR[2]; }
+//         else if (et == VAR) { return SessEnergy.VAR_HR[0]  + SessEnergy.VAR_HR[1]  + SessEnergy.VAR_HR[2]; }
+//         else if (et == VA)  { return SessEnergy.VA_HR[0]   + SessEnergy.VA_HR[1]   + SessEnergy.VA_HR[2]; }
+//     } else if (ph == A) {
+//         if      (et == W)   { return SessEnergy.WATT_HR[0]; }
+//         else if (et == VAR) { return SessEnergy.VAR_HR[0]; }
+//         else if (et == VA)  { return SessEnergy.VA_HR[0]; }
+//     } else if (ph == B) {
+//         if      (et == W)   { return SessEnergy.WATT_HR[1]; }
+//         else if (et == VAR) { return SessEnergy.VAR_HR[1]; }
+//         else if (et == VA)  { return SessEnergy.VA_HR[1]; }
+//     } else if (ph == C) {
+//         if      (et == W)   { return SessEnergy.WATT_HR[2]; }
+//         else if (et == VAR) { return SessEnergy.VAR_HR[2]; }
+//         else if (et == VA)  { return SessEnergy.VA_HR[2]; }
+//     }
+// }
+// 
+// 
+// int32_t Meter::get_StoredEnergy(EnergyType et) {
+//     if      (et == W)   {return EmData.WATT_HR_SUM; }
+//     else if (et == VAR) {return EmData.VAR_HR_SUM; }
+//     else if (et == VA)  {return EmData.VA_HR_SUM; }
+// }
+// 
+// void Meter::append_SessEnergy() {
+//     EmData.WATT_HR_SUM  += get_SessEnergy(W, SUMM);
+//     EmData.VAR_HR_SUM   += get_SessEnergy(VAR, SUMM);
+//     EmData.VA_HR_SUM    += get_SessEnergy(VA, SUMM);
+//     eeprom_store(S_WRITE);
+//     reset_SessEnergy();
+// }
+// 
+// void Meter::eeprom_store(StoreCmd o) {
+//     if (o == StoreCmd::S_READ) {
+//         eeprom_read_block(&EmData, &EEM_EMeter_Block, sizeof(EmData));
+//         if (EmData.crc8 != utils::gencrc8((uint8_t *)&EmData, sizeof(EmData)-1)) {o = StoreCmd::S_DEFS;} 
+//     }
+//     if (o == StoreCmd::S_DEFS) {
+//         EmData.WATT_HR_SUM  = 0; // Active Energy Register summ
+//         EmData.VAR_HR_SUM   = 0; // Reactive Energy Register summ
+//         EmData.VA_HR_SUM    = 0; // Apparent Energy Register summ
+//         o = StoreCmd::S_WRITE;
+//     }
+//     if (o == StoreCmd::S_WRITE) {
+//         EmData.ts = settings.now();
+//         EmData.crc8 = utils::gencrc8((uint8_t *)&EmData, sizeof(EmData)-1);
+//         eeprom_write_block(&EmData, &EEM_EMeter_Block, sizeof(EmData));
+//     }
+// }
+// 
+// 
+// 
+// 
+// }
